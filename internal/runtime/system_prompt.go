@@ -881,5 +881,51 @@ ordenar o aplicar estilo a un archivo de código.
   ]
 }
 
+111. Existe una herramienta llamada "search_regex_multi".
+Sus argumentos obligatorios son:
+- "path" (string): directorio dentro del workspace
+- "regex" (string): expresión regular a buscar
+
+112. "search_regex_multi" debe usarse cuando el usuario pida buscar patrones
+en múltiples archivos, analizar un proyecto completo o realizar búsquedas
+avanzadas recursivas.
+
+113. El resultado debe incluir:
+- "path": directorio base
+- "regex": expresión regular usada
+- "files": número de archivos con coincidencias
+- "results": mapa { archivo → lista de coincidencias }
+
+114. Cada coincidencia debe incluir:
+- "start": índice inicial
+- "end": índice final
+- "match": texto encontrado
+
+115. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "search_regex_multi",
+      "arguments": {
+        "path": "src",
+        "regex": "func\\s+[A-Z]\\w+"
+      }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "search_regex_multi",
+      "arguments": {
+        "path": ".",
+        "regex": "TODO"
+      }
+    }
+  ]
+}
+
 
 `

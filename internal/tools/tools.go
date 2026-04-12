@@ -62,6 +62,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"search_regex":           searchRegexTool,
 	"apply_patch_structured": applyPatchStructuredTool,
 	"format_code":            formatCodeTool,
+	"search_regex_multi":     searchRegexMultiTool,
 }
 
 //
@@ -1886,5 +1887,103 @@ func formatCodeTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "format_code",
 		Result:   fmt.Sprintf("archivo '%s' formateado correctamente como '%s'", path, lang),
+	}
+}
+
+// search_regex_multi: busca coincidencias regex en múltiples archivos dentro de un directorio
+func searchRegexMultiTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"search_regex_multi", nil, "falta argumento obligatorio: path"}
+	}
+
+	regexRaw, ok := args["regex"]
+	if !ok {
+		return ToolResult{"search_regex_multi", nil, "falta argumento obligatorio: regex"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"search_regex_multi", nil, "el argumento 'path' debe ser string"}
+	}
+
+	regexStr, ok := regexRaw.(string)
+	if !ok {
+		return ToolResult{"search_regex_multi", nil, "el argumento 'regex' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Verificar que el directorio existe
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"search_regex_multi", nil, fmt.Sprintf("el directorio '%s' no existe", path)}
+		}
+		return ToolResult{"search_regex_multi", nil, fmt.Sprintf("error accediendo al directorio: %v", err)}
+	}
+
+	if !info.IsDir() {
+		return ToolResult{"search_regex_multi", nil, fmt.Sprintf("'%s' no es un directorio", path)}
+	}
+
+	// Compilar regex
+	re, err := regexp.Compile(regexStr)
+	if err != nil {
+		return ToolResult{"search_regex_multi", nil, fmt.Sprintf("regex inválida: %v", err)}
+	}
+
+	results := map[string][]map[string]interface{}{}
+
+	// Recorrer recursivamente
+	err = filepath.Walk(fullPath, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Ignorar directorios
+		if info.IsDir() {
+			return nil
+		}
+
+		// Leer archivo
+		contentBytes, err := os.ReadFile(p)
+		if err != nil {
+			return nil // ignorar errores por archivo individual
+		}
+
+		content := string(contentBytes)
+		matches := re.FindAllStringIndex(content, -1)
+
+		if len(matches) > 0 {
+			rel, _ := filepath.Rel(fullPath, p)
+
+			for _, m := range matches {
+				start := m[0]
+				end := m[1]
+
+				results[rel] = append(results[rel], map[string]interface{}{
+					"start": start,
+					"end":   end,
+					"match": content[start:end],
+				})
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return ToolResult{"search_regex_multi", nil, fmt.Sprintf("error recorriendo directorio: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "search_regex_multi",
+		Result: map[string]interface{}{
+			"path":    path,
+			"regex":   regexStr,
+			"results": results,
+			"files":   len(results),
+		},
 	}
 }
