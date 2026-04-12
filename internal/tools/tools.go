@@ -35,6 +35,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"apply_patch":       applyPatchTool,
 	"apply_patch_fuzzy": applyPatchFuzzyTool,
 	"list_files":        listFilesTool,
+	"search_in_file":    searchInFileTool,
 }
 
 //
@@ -446,5 +447,53 @@ func listFilesTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "list_files",
 		Result:   files,
+	}
+}
+
+// search_in_file: busca texto dentro de un archivo y devuelve coincidencias con número de línea
+func searchInFileTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"search_in_file", nil, "falta argumento obligatorio: path"}
+	}
+
+	queryRaw, ok := args["query"]
+	if !ok {
+		return ToolResult{"search_in_file", nil, "falta argumento obligatorio: query"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"search_in_file", nil, "el argumento 'path' debe ser string"}
+	}
+
+	query, ok := queryRaw.(string)
+	if !ok {
+		return ToolResult{"search_in_file", nil, "el argumento 'query' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Leer archivo
+	contentBytes, err := os.ReadFile(fullPath)
+	if err != nil {
+		return ToolResult{"search_in_file", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+	}
+
+	lines := strings.Split(string(contentBytes), "\n")
+	var results []map[string]interface{}
+
+	for i, line := range lines {
+		if strings.Contains(line, query) {
+			results = append(results, map[string]interface{}{
+				"line_number": i + 1,
+				"line":        line,
+			})
+		}
+	}
+
+	return ToolResult{
+		ToolName: "search_in_file",
+		Result:   results,
 	}
 }

@@ -193,4 +193,30 @@ explorar el workspace, buscar archivos por extensión o inspeccionar la estructu
   ]
 }
 
+28. Existe una herramienta llamada "search_in_file".
+Sus argumentos obligatorios son:
+- "path" (string)
+- "query" (string)
+
+29. "search_in_file" debe usarse cuando el usuario pida buscar texto dentro de un archivo,
+localizar funciones, imports, variables, patrones o cualquier coincidencia.
+
+30. El resultado debe ser una lista de objetos con:
+- "line_number"
+- "line"
+
+Ejemplo:
+
+{
+  "tool_calls": [
+    {
+      "name": "search_in_file",
+      "arguments": {
+        "path": "main.go",
+        "query": "func"
+      }
+    }
+  ]
+}
+
 `
