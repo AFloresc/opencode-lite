@@ -22,9 +22,9 @@ El runtime expone un **registry de herramientas**, cada una implementada como un
 
 Todas las operaciones se realizan dentro del directorio:
 
-    ´´´text
-        workspace/
-    ´´´
+```text
+    workspace/
+```
 
 
 Esto garantiza aislamiento y seguridad.
