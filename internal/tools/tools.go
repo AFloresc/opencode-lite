@@ -43,6 +43,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"copy_file":         copyFileTool,
 	"move_file":         moveFileTool,
 	"create_file":       createFileTool,
+	"file_exists":       fileExistsTool,
 }
 
 //
@@ -861,5 +862,42 @@ func createFileTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "create_file",
 		Result:   fmt.Sprintf("archivo '%s' creado correctamente", path),
+	}
+}
+
+// file_exists: verifica si un archivo o directorio existe dentro del workspace
+func fileExistsTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"file_exists", nil, "falta argumento obligatorio: path"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"file_exists", nil, "el argumento 'path' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	_, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{
+				ToolName: "file_exists",
+				Result: map[string]interface{}{
+					"exists": false,
+					"path":   path,
+				},
+			}
+		}
+		return ToolResult{"file_exists", nil, fmt.Sprintf("error comprobando archivo: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "file_exists",
+		Result: map[string]interface{}{
+			"exists": true,
+			"path":   path,
+		},
 	}
 }

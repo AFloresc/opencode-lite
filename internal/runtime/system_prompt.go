@@ -398,5 +398,37 @@ generar plantillas, iniciar proyectos o crear archivos antes de modificarlos.
   ]
 }
 
+54. Existe una herramienta llamada "file_exists".
+Su argumento obligatorio es:
+- "path" (string): ruta del archivo o directorio dentro del workspace.
+
+55. "file_exists" debe usarse cuando el usuario pida comprobar si un archivo existe,
+o cuando el agente necesite verificar la existencia antes de leer, escribir, copiar,
+mover o parchear.
+
+56. El resultado debe ser un objeto con:
+- "exists": booleano
+- "path": string
+
+57. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "file_exists",
+      "arguments": { "path": "main.go" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "file_exists",
+      "arguments": { "path": "src/utils" }
+    }
+  ]
+}
+
 
 `
