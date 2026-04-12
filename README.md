@@ -144,6 +144,62 @@ Autoformateo de código:
 
 ---
 
+# 🖥️ Comandos sandbox (`run_command`)
+
+El runtime incluye un **intérprete seguro** que ejecuta comandos internos sin tocar el sistema operativo real.
+
+---
+
+## 📏 Comandos básicos
+
+| Comando | Descripción |
+|--------|-------------|
+| `count_lines <archivo>` | Cuenta líneas |
+| `file_size <archivo>` | Tamaño en bytes |
+| `validate_json <archivo>` | Valida JSON |
+| `echo <texto>` | Devuelve el texto |
+| `word_count <archivo>` | Cuenta palabras |
+| `char_count <archivo>` | Cuenta caracteres |
+| `sha256 <archivo>` | Hash SHA‑256 |
+| `list_dir <directorio>` | Lista archivos |
+| `head <archivo> <n>` | Primeras n líneas |
+| `tail <archivo> <n>` | Últimas n líneas |
+| `search <archivo> <texto>` | Búsqueda exacta |
+| `now` | Fecha/hora actual |
+
+---
+
+## 🔧 Comandos de análisis de código
+
+| Comando | Descripción |
+|--------|-------------|
+| `count_funcs <archivo.go>` | Cuenta funciones |
+| `count_imports <archivo.go>` | Cuenta imports |
+| `find_structs <archivo.go>` | Lista structs |
+| `find_interfaces <archivo.go>` | Lista interfaces |
+
+---
+
+## 📦 Comandos de análisis de proyecto
+
+| Comando | Descripción |
+|--------|-------------|
+| `project_stats` | Número de archivos y directorios |
+| `largest_files` | Top 10 archivos más grandes |
+| `file_tree` | Árbol completo del workspace |
+
+---
+
+## 🧠 Comandos inteligentes
+
+| Comando | Descripción |
+|--------|-------------|
+| `detect_language <archivo>` | Detecta lenguaje por extensión |
+| `summarize_file <archivo>` | Primeras 5 líneas |
+| `extract_comments <archivo.go>` | Extrae comentarios `//` |
+
+---
+
 # 🧩 Registro de herramientas
 
 Todas las herramientas se registran en:
