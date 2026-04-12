@@ -522,5 +522,39 @@ Su argumento obligatorio es:
   ]
 }
 
+70. Existe una herramienta llamada "stat_file".
+Su argumento obligatorio es:
+- "path" (string): ruta del archivo o directorio dentro del workspace.
+
+71. "stat_file" debe usarse cuando el usuario pida obtener metadatos de un archivo
+o directorio específico.
+
+72. El resultado debe incluir:
+- "path": ruta solicitada
+- "is_dir": booleano
+- "size": tamaño en bytes
+- "modified": fecha de modificación
+- "permissions": permisos del sistema
+
+73. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "stat_file",
+      "arguments": { "path": "main.go" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "stat_file",
+      "arguments": { "path": "src/utils" }
+    }
+  ]
+}
+
 
 `

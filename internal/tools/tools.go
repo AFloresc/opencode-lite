@@ -47,6 +47,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"read_dir":          readDirTool,
 	"append_file":       appendFileTool,
 	"truncate_file":     truncateFileTool,
+	"stat_file":         statFileTool,
 }
 
 //
@@ -1028,5 +1029,41 @@ func truncateFileTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "truncate_file",
 		Result:   fmt.Sprintf("archivo '%s' truncado correctamente", path),
+	}
+}
+
+// stat_file: devuelve metadatos de un archivo o directorio dentro del workspace
+func statFileTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"stat_file", nil, "falta argumento obligatorio: path"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"stat_file", nil, "el argumento 'path' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"stat_file", nil, fmt.Sprintf("el archivo '%s' no existe", path)}
+		}
+		return ToolResult{"stat_file", nil, fmt.Sprintf("error obteniendo metadatos: %v", err)}
+	}
+
+	result := map[string]interface{}{
+		"path":        path,
+		"is_dir":      info.IsDir(),
+		"size":        info.Size(),
+		"modified":    info.ModTime().String(),
+		"permissions": info.Mode().String(),
+	}
+
+	return ToolResult{
+		ToolName: "stat_file",
+		Result:   result,
 	}
 }
