@@ -308,5 +308,35 @@ o directorio dentro del workspace.
   ]
 }
 
+42. Existe una herramienta llamada "copy_file".
+Sus argumentos obligatorios son:
+- "from" (string): ruta origen dentro del workspace
+- "to" (string): ruta destino dentro del workspace
+
+43. "copy_file" debe usarse cuando el usuario pida copiar un archivo o un directorio.
+
+44. Si el origen es un directorio, debe copiarse recursivamente.
+Si el destino incluye carpetas que no existen, deben crearse automáticamente.
+
+45. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "copy_file",
+      "arguments": { "from": "demo.txt", "to": "backup/demo.txt" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "copy_file",
+      "arguments": { "from": "src", "to": "src_backup" }
+    }
+  ]
+}
+
 
 `

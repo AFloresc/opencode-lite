@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -39,6 +40,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"grep":              grepTool,
 	"delete_file":       deleteFileTool,
 	"rename_file":       renameFileTool,
+	"copy_file":         copyFileTool,
 }
 
 //
@@ -677,4 +679,98 @@ func renameFileTool(args map[string]interface{}) ToolResult {
 		ToolName: "rename_file",
 		Result:   fmt.Sprintf("'%s' renombrado a '%s' correctamente", from, to),
 	}
+}
+
+// copy_file: copia un archivo o directorio dentro del workspace
+func copyFileTool(args map[string]interface{}) ToolResult {
+	fromRaw, ok := args["from"]
+	if !ok {
+		return ToolResult{"copy_file", nil, "falta argumento obligatorio: from"}
+	}
+
+	toRaw, ok := args["to"]
+	if !ok {
+		return ToolResult{"copy_file", nil, "falta argumento obligatorio: to"}
+	}
+
+	from, ok := fromRaw.(string)
+	if !ok {
+		return ToolResult{"copy_file", nil, "el argumento 'from' debe ser string"}
+	}
+
+	to, ok := toRaw.(string)
+	if !ok {
+		return ToolResult{"copy_file", nil, "el argumento 'to' debe ser string"}
+	}
+
+	fullFrom := filepath.Join("workspace", from)
+	fullTo := filepath.Join("workspace", to)
+
+	// Verificar existencia del origen
+	info, err := os.Stat(fullFrom)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"copy_file", nil, fmt.Sprintf("el archivo o directorio '%s' no existe", from)}
+		}
+		return ToolResult{"copy_file", nil, fmt.Sprintf("error accediendo al origen: %v", err)}
+	}
+
+	// Crear directorios destino si no existen
+	if err := os.MkdirAll(filepath.Dir(fullTo), 0755); err != nil {
+		return ToolResult{"copy_file", nil, fmt.Sprintf("error creando directorios destino: %v", err)}
+	}
+
+	// Si es directorio → copiar recursivamente
+	if info.IsDir() {
+		err := filepath.Walk(fullFrom, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			rel, _ := filepath.Rel(fullFrom, path)
+			dest := filepath.Join(fullTo, rel)
+
+			if info.IsDir() {
+				return os.MkdirAll(dest, 0755)
+			}
+
+			// Copiar archivo
+			return copySingleFile(path, dest)
+		})
+
+		if err != nil {
+			return ToolResult{"copy_file", nil, fmt.Sprintf("error copiando directorio: %v", err)}
+		}
+
+		return ToolResult{"copy_file", fmt.Sprintf("directorio '%s' copiado a '%s' correctamente", from, to), ""}
+	}
+
+	// Si es archivo → copiar archivo único
+	if err := copySingleFile(fullFrom, fullTo); err != nil {
+		return ToolResult{"copy_file", nil, fmt.Sprintf("error copiando archivo: %v", err)}
+	}
+
+	return ToolResult{"copy_file", fmt.Sprintf("archivo '%s' copiado a '%s' correctamente", from, to), ""}
+}
+
+// Función auxiliar para copiar un archivo individual
+func copySingleFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+
+	return out.Close()
 }
