@@ -585,4 +585,47 @@ o actualizar su timestamp si ya existe.
   ]
 }
 
+78. Existe una herramienta llamada "search_replace".
+Sus argumentos obligatorios son:
+- "path" (string): archivo dentro del workspace
+- "search" (string): texto a buscar
+- "replace" (string): texto de reemplazo
+
+79. "search_replace" debe usarse cuando el usuario pida reemplazar texto dentro de un archivo.
+
+80. El resultado debe incluir:
+- "path"
+- "replacements": número de reemplazos realizados
+- "search"
+- "replace"
+- "success": booleano
+
+81. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "search_replace",
+      "arguments": {
+        "path": "main.go",
+        "search": "fmt.Println",
+        "replace": "log.Println"
+      }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "search_replace",
+      "arguments": {
+        "path": "config.yaml",
+        "search": "debug: true",
+        "replace": "debug: false"
+      }
+    }
+  ]
+}
+
 `

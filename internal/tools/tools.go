@@ -50,6 +50,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"truncate_file":     truncateFileTool,
 	"stat_file":         statFileTool,
 	"touch_file":        touchFileTool,
+	"search_replace":    searchReplaceTool,
 }
 
 //
@@ -1112,5 +1113,74 @@ func touchFileTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "touch_file",
 		Result:   fmt.Sprintf("timestamp de '%s' actualizado correctamente", path),
+	}
+}
+
+// search_replace: busca y reemplaza texto dentro de un archivo del workspace
+func searchReplaceTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"search_replace", nil, "falta argumento obligatorio: path"}
+	}
+
+	searchRaw, ok := args["search"]
+	if !ok {
+		return ToolResult{"search_replace", nil, "falta argumento obligatorio: search"}
+	}
+
+	replaceRaw, ok := args["replace"]
+	if !ok {
+		return ToolResult{"search_replace", nil, "falta argumento obligatorio: replace"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"search_replace", nil, "el argumento 'path' debe ser string"}
+	}
+
+	search, ok := searchRaw.(string)
+	if !ok {
+		return ToolResult{"search_replace", nil, "el argumento 'search' debe ser string"}
+	}
+
+	replace, ok := replaceRaw.(string)
+	if !ok {
+		return ToolResult{"search_replace", nil, "el argumento 'replace' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Leer archivo
+	contentBytes, err := os.ReadFile(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"search_replace", nil, fmt.Sprintf("el archivo '%s' no existe", path)}
+		}
+		return ToolResult{"search_replace", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+	}
+
+	content := string(contentBytes)
+
+	// Contar ocurrencias
+	count := strings.Count(content, search)
+
+	// Reemplazar
+	newContent := strings.ReplaceAll(content, search, replace)
+
+	// Guardar archivo
+	err = os.WriteFile(fullPath, []byte(newContent), 0644)
+	if err != nil {
+		return ToolResult{"search_replace", nil, fmt.Sprintf("error escribiendo archivo: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "search_replace",
+		Result: map[string]interface{}{
+			"path":         path,
+			"replacements": count,
+			"search":       search,
+			"replace":      replace,
+			"success":      true,
+		},
 	}
 }
