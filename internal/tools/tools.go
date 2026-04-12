@@ -28,7 +28,8 @@ type ToolResult struct {
 //
 
 var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
-	"read_file": readFileTool,
+	"read_file":  readFileTool,
+	"write_file": writeFileTool,
 }
 
 //
@@ -83,5 +84,55 @@ func readFileTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "read_file",
 		Result:   string(data),
+	}
+}
+
+// write_file: escribe un archivo dentro del directorio workspace
+func writeFileTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{
+			ToolName: "write_file",
+			Error:    "falta argumento obligatorio: path",
+		}
+	}
+
+	contentRaw, ok := args["content"]
+	if !ok {
+		return ToolResult{
+			ToolName: "write_file",
+			Error:    "falta argumento obligatorio: content",
+		}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{
+			ToolName: "write_file",
+			Error:    "el argumento 'path' debe ser string",
+		}
+	}
+
+	content, ok := contentRaw.(string)
+	if !ok {
+		return ToolResult{
+			ToolName: "write_file",
+			Error:    "el argumento 'content' debe ser string",
+		}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	err := os.WriteFile(fullPath, []byte(content), 0644)
+	if err != nil {
+		return ToolResult{
+			ToolName: "write_file",
+			Error:    fmt.Sprintf("error escribiendo archivo: %v", err),
+		}
+	}
+
+	return ToolResult{
+		ToolName: "write_file",
+		Result:   fmt.Sprintf("archivo escrito correctamente: %s", fullPath),
 	}
 }

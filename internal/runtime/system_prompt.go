@@ -40,4 +40,22 @@ REGLAS GENERALES:
 
 10. Asume que todos los archivos están dentro del directorio "workspace".
 
+11.  Para la herramienta "write_file", los argumentos obligatorios son EXACTAMENTE:
+- "path"
+- "content"
+
+Ejemplo de llamada válida:
+
+{
+  "tool_calls": [
+    {
+      "name": "write_file",
+      "arguments": {
+        "path": "nuevo.txt",
+        "content": "hola mundo"
+      }
+    }
+  ]
+}
+
 `
