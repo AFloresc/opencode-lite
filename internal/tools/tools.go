@@ -139,38 +139,26 @@ func writeFileTool(args map[string]interface{}) ToolResult {
 	}
 }
 
-// apply_patch: aplica un parche estilo unified diff a un archivo dentro de workspace
+// / apply_patch: aplica un parche unified diff real
 func applyPatchTool(args map[string]interface{}) ToolResult {
 	pathRaw, ok := args["path"]
 	if !ok {
-		return ToolResult{
-			ToolName: "apply_patch",
-			Error:    "falta argumento obligatorio: path",
-		}
+		return ToolResult{"apply_patch", nil, "falta argumento obligatorio: path"}
 	}
 
 	patchRaw, ok := args["patch"]
 	if !ok {
-		return ToolResult{
-			ToolName: "apply_patch",
-			Error:    "falta argumento obligatorio: patch",
-		}
+		return ToolResult{"apply_patch", nil, "falta argumento obligatorio: patch"}
 	}
 
 	path, ok := pathRaw.(string)
 	if !ok {
-		return ToolResult{
-			ToolName: "apply_patch",
-			Error:    "el argumento 'path' debe ser string",
-		}
+		return ToolResult{"apply_patch", nil, "el argumento 'path' debe ser string"}
 	}
 
 	patch, ok := patchRaw.(string)
 	if !ok {
-		return ToolResult{
-			ToolName: "apply_patch",
-			Error:    "el argumento 'patch' debe ser string",
-		}
+		return ToolResult{"apply_patch", nil, "el argumento 'patch' debe ser string"}
 	}
 
 	fullPath := filepath.Join("workspace", path)
@@ -178,57 +166,52 @@ func applyPatchTool(args map[string]interface{}) ToolResult {
 	// Leer archivo original
 	originalBytes, err := os.ReadFile(fullPath)
 	if err != nil {
-		return ToolResult{
-			ToolName: "apply_patch",
-			Error:    fmt.Sprintf("error leyendo archivo original: %v", err),
-		}
+		return ToolResult{"apply_patch", nil, fmt.Sprintf("error leyendo archivo original: %v", err)}
 	}
 
-	original := string(originalBytes)
-	originalLines := strings.Split(original, "\n")
+	original := strings.Split(string(originalBytes), "\n")
+	result := []string{}
+	i := 0 // índice en original
 
-	// Aplicar parche
-	patchLines := strings.Split(patch, "\n")
-	var result []string
-	index := 0
+	lines := strings.Split(patch, "\n")
 
-	for _, line := range patchLines {
+	for _, line := range lines {
+
+		// Ignorar encabezados
+		if strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++") {
+			continue
+		}
+
+		// Ignorar encabezados de hunk
 		if strings.HasPrefix(line, "@@") {
-			// ignoramos encabezados @@ -1,3 +1,4 @@
 			continue
 		}
 
+		// Línea eliminada
 		if strings.HasPrefix(line, "-") {
-			// línea eliminada → saltamos en original
-			index++
+			i++
 			continue
 		}
 
+		// Línea añadida
 		if strings.HasPrefix(line, "+") {
-			// línea añadida
 			result = append(result, line[1:])
 			continue
 		}
 
-		// línea sin prefijo → copiar del original
-		if index < len(originalLines) {
-			result = append(result, originalLines[index])
-			index++
+		// Línea sin prefijo → copiar del original
+		if i < len(original) {
+			result = append(result, original[i])
+			i++
 		}
 	}
 
 	// Guardar archivo modificado
-	finalContent := strings.Join(result, "\n")
-	err = os.WriteFile(fullPath, []byte(finalContent), 0644)
+	final := strings.Join(result, "\n")
+	err = os.WriteFile(fullPath, []byte(final), 0644)
 	if err != nil {
-		return ToolResult{
-			ToolName: "apply_patch",
-			Error:    fmt.Sprintf("error escribiendo archivo modificado: %v", err),
-		}
+		return ToolResult{"apply_patch", nil, fmt.Sprintf("error escribiendo archivo modificado: %v", err)}
 	}
 
-	return ToolResult{
-		ToolName: "apply_patch",
-		Result:   fmt.Sprintf("parche aplicado correctamente a %s", fullPath),
-	}
+	return ToolResult{"apply_patch", fmt.Sprintf("parche aplicado correctamente a %s", fullPath), ""}
 }
