@@ -9,11 +9,6 @@ import (
 	"strings"
 )
 
-// applyPatchTool
-// applyPatchFuzzyTool
-// applyPatchAutoTool
-// applyPatchStructuredTool
-
 // apply_patch ULTRA: soporte para múltiples hunks, validación de contexto y detección de conflictos
 func applyPatchTool(args map[string]interface{}) ToolResult {
 	pathRaw, ok := args["path"]

@@ -1,121 +1,164 @@
 package tools
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"go/format"
-	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
+// ------------------------------------------------------------
 // formatCodeTool
-// format_code: autoformatea código según el lenguaje detectado o especificado
+// Formatea archivos según su extensión:
+// - .go     → gofmt
+// - .json   → indent JSON
+// - .yaml   → limpieza básica
+// - .yml    → limpieza básica
+// - .md     → normalización ligera
+// - otros   → trim + normalización
+// ------------------------------------------------------------
 func formatCodeTool(args map[string]interface{}) ToolResult {
 	pathRaw, ok := args["path"]
 	if !ok {
 		return ToolResult{"format_code", nil, "falta argumento obligatorio: path"}
 	}
 
-	path, ok := pathRaw.(string)
-	if !ok {
-		return ToolResult{"format_code", nil, "el argumento 'path' debe ser string"}
-	}
+	path := pathRaw.(string)
 
-	lang := ""
-	if langRaw, ok := args["lang"]; ok {
-		lang, _ = langRaw.(string)
-	}
-
-	fullPath := filepath.Join("workspace", path)
-
-	// Leer archivo
-	contentBytes, err := os.ReadFile(fullPath)
+	content, err := readFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return ToolResult{"format_code", nil, fmt.Sprintf("el archivo '%s' no existe", path)}
-		}
-		return ToolResult{"format_code", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+		return ToolResult{"format_code", nil, err.Error()}
 	}
 
-	content := string(contentBytes)
-
-	// Detectar lenguaje por extensión si no se especifica
-	if lang == "" {
-		ext := strings.ToLower(filepath.Ext(path))
-		switch ext {
-		case ".go":
-			lang = "go"
-		case ".json":
-			lang = "json"
-		case ".yaml", ".yml":
-			lang = "yaml"
-		default:
-			lang = "generic"
-		}
-	}
+	ext := strings.ToLower(filepath.Ext(path))
 
 	var formatted string
 
-	switch lang {
-
-	// ---------------------------------------------------------
-	// GO FORMATTER (real gofmt)
-	// ---------------------------------------------------------
-	case "go":
-		formattedBytes, err := format.Source([]byte(content))
-		if err != nil {
-			return ToolResult{"format_code", nil, fmt.Sprintf("error formateando Go: %v", err)}
-		}
-		formatted = string(formattedBytes)
-
-	// ---------------------------------------------------------
-	// JSON FORMATTER
-	// ---------------------------------------------------------
-	case "json":
-		var obj interface{}
-		if err := json.Unmarshal([]byte(content), &obj); err != nil {
-			return ToolResult{"format_code", nil, fmt.Sprintf("JSON inválido: %v", err)}
-		}
-		out, err := json.MarshalIndent(obj, "", "  ")
-		if err != nil {
-			return ToolResult{"format_code", nil, fmt.Sprintf("error formateando JSON: %v", err)}
-		}
-		formatted = string(out)
-
-	// ---------------------------------------------------------
-	// YAML FORMATTER (simple indent)
-	// ---------------------------------------------------------
-	case "yaml":
-		// YAML no tiene formateador estándar en Go sin dependencias externas.
-		// Hacemos un trim + normalización básica.
-		lines := strings.Split(content, "\n")
-		var cleaned []string
-		for _, l := range lines {
-			cleaned = append(cleaned, strings.TrimRight(l, " \t"))
-		}
-		formatted = strings.Join(cleaned, "\n")
-
-	// ---------------------------------------------------------
-	// GENERIC FORMATTER
-	// ---------------------------------------------------------
+	switch ext {
+	case ".go":
+		formatted, err = formatGo(content)
+	case ".json":
+		formatted, err = formatJSON(content)
+	case ".yaml", ".yml":
+		formatted, err = formatYAML(content)
+	case ".md":
+		formatted, err = formatMarkdown(content)
 	default:
-		lines := strings.Split(content, "\n")
-		var cleaned []string
-		for _, l := range lines {
-			cleaned = append(cleaned, strings.TrimRight(l, " \t"))
-		}
-		formatted = strings.Join(cleaned, "\n")
+		formatted, err = formatGeneric(content)
 	}
 
-	// Guardar archivo formateado
-	err = os.WriteFile(fullPath, []byte(formatted), 0644)
 	if err != nil {
-		return ToolResult{"format_code", nil, fmt.Sprintf("error escribiendo archivo: %v", err)}
+		return ToolResult{"format_code", nil, err.Error()}
 	}
 
-	return ToolResult{
-		ToolName: "format_code",
-		Result:   fmt.Sprintf("archivo '%s' formateado correctamente como '%s'", path, lang),
+	if err := writeFile(path, formatted); err != nil {
+		return ToolResult{"format_code", nil, err.Error()}
 	}
+
+	return ToolResult{"format_code", map[string]interface{}{
+		"path":      path,
+		"formatted": true,
+	}, ""}
+}
+
+//
+// ------------------------------------------------------------
+// IMPLEMENTACIONES INTERNAS
+// ------------------------------------------------------------
+//
+
+// ------------------------------------------------------------
+// Go formatter (gofmt real)
+// ------------------------------------------------------------
+func formatGo(src string) (string, error) {
+	cmd := exec.Command("gofmt")
+	cmd.Stdin = bytes.NewBufferString(src)
+
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("error ejecutando gofmt: %v", err)
+	}
+
+	return string(out), nil
+}
+
+// ------------------------------------------------------------
+// JSON formatter
+// ------------------------------------------------------------
+func formatJSON(src string) (string, error) {
+	var obj interface{}
+	if err := json.Unmarshal([]byte(src), &obj); err != nil {
+		return "", errors.New("JSON inválido: " + err.Error())
+	}
+
+	pretty, err := json.MarshalIndent(obj, "", "  ")
+	if err != nil {
+		return "", err
+	}
+
+	return string(pretty), nil
+}
+
+// ------------------------------------------------------------
+// YAML formatter (simple normalización)
+// ------------------------------------------------------------
+func formatYAML(src string) (string, error) {
+	// No usamos librerías externas para mantener sandbox limpio.
+	// Normalización básica:
+	// - trim espacios
+	// - eliminar líneas vacías duplicadas
+	lines := strings.Split(src, "\n")
+	var out []string
+
+	lastEmpty := false
+	for _, l := range lines {
+		trimmed := strings.TrimRight(l, " ")
+
+		if trimmed == "" {
+			if lastEmpty {
+				continue
+			}
+			lastEmpty = true
+		} else {
+			lastEmpty = false
+		}
+
+		out = append(out, trimmed)
+	}
+
+	return strings.Join(out, "\n"), nil
+}
+
+// ------------------------------------------------------------
+// Markdown formatter (ligero)
+// ------------------------------------------------------------
+func formatMarkdown(src string) (string, error) {
+	lines := strings.Split(src, "\n")
+	var out []string
+
+	for _, l := range lines {
+		out = append(out, strings.TrimRight(l, " "))
+	}
+
+	return strings.Join(out, "\n"), nil
+}
+
+// ------------------------------------------------------------
+// Generic formatter (fallback)
+// ------------------------------------------------------------
+func formatGeneric(src string) (string, error) {
+	// Normalización mínima:
+	// - trim final
+	// - eliminar espacios repetidos al final de línea
+	lines := strings.Split(src, "\n")
+	var out []string
+
+	for _, l := range lines {
+		out = append(out, strings.TrimRight(l, " "))
+	}
+
+	return strings.TrimSpace(strings.Join(out, "\n")), nil
 }

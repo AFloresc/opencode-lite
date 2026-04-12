@@ -44,7 +44,37 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	// run_command
 	"run_command": runCommandTool,
 
-	// Project analysis
+	// Code analysis
+	"count_funcs":     runCommandTool,
+	"count_imports":   runCommandTool,
+	"find_structs":    runCommandTool,
+	"find_interfaces": runCommandTool,
 
-	// Semantic
+	//Project analysis
+	"project_stats": runCommandTool,
+	"largest_files": runCommandTool,
+	"file_tree":     runCommandTool,
+
+	// Inteligence / semantic
+	"detect_language":  runCommandTool,
+	"summarize_file":   runCommandTool,
+	"extract_comments": runCommandTool,
+
+	// Semantic tools
+	"extract_functions":      extractFunctionsTool,
+	"extract_types":          extractTypesTool,
+	"extract_comments_block": extractCommentsBlockTool,
+	"semantic_index":         semanticIndexTool,
+
+	// Refactor tools
+	"refactor_rename_symbol": refactorRenameSymbolTool,
+	"refactor_move_file":     refactorMoveFileTool,
+	"refactor_split_file":    refactorSplitFileTool,
+	"refactor_merge_files":   refactorMergeFilesTool,
+
+	// Analysis tools
+	"analysis_dependencies": analysisDependenciesTool,
+	"analysis_cyclomatic":   analysisCyclomaticTool,
+	"analysis_dead_code":    analysisDeadCodeTool,
+	"analysis_metrics":      analysisMetricsTool,
 }

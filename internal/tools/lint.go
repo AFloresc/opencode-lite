@@ -3,160 +3,188 @@ package tools
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
 
+// ------------------------------------------------------------
 // lintCodeTool
-
-// lint_code: analiza un archivo y devuelve advertencias comunes
+// Linter básico según extensión:
+// - .go     → lint sintáctico simple
+// - .json   → validación + estructura
+// - .yaml   → validación mínima
+// - otros   → chequeos genéricos
+// ------------------------------------------------------------
 func lintCodeTool(args map[string]interface{}) ToolResult {
 	pathRaw, ok := args["path"]
 	if !ok {
 		return ToolResult{"lint_code", nil, "falta argumento obligatorio: path"}
 	}
 
-	path, ok := pathRaw.(string)
-	if !ok {
-		return ToolResult{"lint_code", nil, "el argumento 'path' debe ser string"}
-	}
+	path := pathRaw.(string)
 
-	lang := ""
-	if langRaw, ok := args["lang"]; ok {
-		lang, _ = langRaw.(string)
-	}
-
-	fullPath := filepath.Join("workspace", path)
-
-	contentBytes, err := os.ReadFile(fullPath)
+	content, err := readFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return ToolResult{"lint_code", nil, fmt.Sprintf("el archivo '%s' no existe", path)}
-		}
-		return ToolResult{"lint_code", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+		return ToolResult{"lint_code", nil, err.Error()}
 	}
 
-	content := string(contentBytes)
-	lines := strings.Split(content, "\n")
+	ext := strings.ToLower(filepath.Ext(path))
 
-	// Detectar lenguaje por extensión si no se especifica
-	if lang == "" {
-		ext := strings.ToLower(filepath.Ext(path))
-		switch ext {
-		case ".go":
-			lang = "go"
-		case ".json":
-			lang = "json"
-		case ".yaml", ".yml":
-			lang = "yaml"
-		default:
-			lang = "generic"
-		}
+	var issues []string
+
+	switch ext {
+	case ".go":
+		issues = lintGo(content)
+	case ".json":
+		issues = lintJSON(content)
+	case ".yaml", ".yml":
+		issues = lintYAML(content)
+	default:
+		issues = lintGeneric(content)
 	}
 
-	var warnings []map[string]interface{}
+	return ToolResult{"lint_code", map[string]interface{}{
+		"path":   path,
+		"issues": issues,
+		"count":  len(issues),
+	}, ""}
+}
 
-	// ---------------------------------------------------------
-	// Reglas genéricas
-	// ---------------------------------------------------------
-	for i, line := range lines {
-		lineno := i + 1
+//
+// ------------------------------------------------------------
+// IMPLEMENTACIONES INTERNAS
+// ------------------------------------------------------------
+//
 
-		// Espacios al final
-		if strings.HasSuffix(line, " ") || strings.HasSuffix(line, "\t") {
-			warnings = append(warnings, map[string]interface{}{
-				"line":    lineno,
-				"type":    "trailing_whitespace",
-				"message": "La línea tiene espacios al final",
-			})
-		}
+// ------------------------------------------------------------
+// Lint para Go (simple, sin dependencias externas)
+// ------------------------------------------------------------
+func lintGo(src string) []string {
+	var issues []string
+	lines := strings.Split(src, "\n")
 
-		// Líneas demasiado largas
-		if len(line) > 120 {
-			warnings = append(warnings, map[string]interface{}{
-				"line":    lineno,
-				"type":    "line_too_long",
-				"message": "La línea supera los 120 caracteres",
-			})
-		}
-
-		// TODOs
-		if strings.Contains(line, "TODO") {
-			warnings = append(warnings, map[string]interface{}{
-				"line":    lineno,
-				"type":    "todo",
-				"message": "Hay un TODO pendiente",
-			})
+	// 1. Líneas demasiado largas
+	for i, l := range lines {
+		if len(l) > 120 {
+			issues = append(issues,
+				fmtIssue(i, "línea demasiado larga (>120 caracteres)"))
 		}
 	}
 
-	// ---------------------------------------------------------
-	// Reglas específicas para Go
-	// ---------------------------------------------------------
-	if lang == "go" {
-		// Import no usado (heurístico)
-		importRe := regexp.MustCompile(`"([^"]+)"`)
-		imports := importRe.FindAllStringSubmatch(content, -1)
-
-		for _, imp := range imports {
-			pkg := filepath.Base(imp[1])
-			if !strings.Contains(content, pkg+".") {
-				warnings = append(warnings, map[string]interface{}{
-					"type":    "unused_import",
-					"message": fmt.Sprintf("Import '%s' posiblemente no usado", imp[1]),
-				})
-			}
+	// 2. Tabs vs spaces
+	for i, l := range lines {
+		if strings.Contains(l, "\t") {
+			issues = append(issues,
+				fmtIssue(i, "usa tabulaciones; Go recomienda tabs pero mezcla puede ser inconsistente"))
 		}
+	}
 
-		// Funciones no usadas (heurístico)
-		funcRe := regexp.MustCompile(`func\s+([A-Za-z0-9_]+)\s*\(`)
-		funcs := funcRe.FindAllStringSubmatch(content, -1)
+	// 3. Comentarios TODO
+	for i, l := range lines {
+		if strings.Contains(strings.ToUpper(l), "TODO") {
+			issues = append(issues,
+				fmtIssue(i, "TODO encontrado"))
+		}
+	}
 
-		for _, f := range funcs {
-			name := f[1]
-			if !strings.Contains(content, name+"(") || strings.Count(content, name+"(") == 1 {
-				warnings = append(warnings, map[string]interface{}{
-					"type":    "unused_function",
-					"message": fmt.Sprintf("La función '%s' podría no estar siendo usada", name),
-				})
+	// 4. Funciones sin comentarios (heurística)
+	reFunc := regexp.MustCompile(`^func\s+([A-Za-z0-9_]+)`)
+	for i, l := range lines {
+		if reFunc.MatchString(l) {
+			if i == 0 || !strings.HasPrefix(strings.TrimSpace(lines[i-1]), "//") {
+				issues = append(issues,
+					fmtIssue(i, "función sin comentario previo"))
 			}
 		}
 	}
 
-	// ---------------------------------------------------------
-	// Reglas JSON
-	// ---------------------------------------------------------
-	if lang == "json" {
-		var js interface{}
-		if err := json.Unmarshal(contentBytes, &js); err != nil {
-			warnings = append(warnings, map[string]interface{}{
-				"type":    "invalid_json",
-				"message": fmt.Sprintf("JSON inválido: %v", err),
-			})
+	return issues
+}
+
+// ------------------------------------------------------------
+// Lint para JSON
+// ------------------------------------------------------------
+func lintJSON(src string) []string {
+	var issues []string
+
+	var obj interface{}
+	err := json.Unmarshal([]byte(src), &obj)
+	if err != nil {
+		issues = append(issues, "JSON inválido: "+err.Error())
+		return issues
+	}
+
+	// JSON válido → sugerencias
+	if !strings.HasPrefix(strings.TrimSpace(src), "{") {
+		issues = append(issues, "JSON debería comenzar con '{'")
+	}
+
+	return issues
+}
+
+// ------------------------------------------------------------
+// Lint para YAML (validación mínima)
+// ------------------------------------------------------------
+func lintYAML(src string) []string {
+	var issues []string
+	lines := strings.Split(src, "\n")
+
+	// 1. Indentación inconsistente
+	for i, l := range lines {
+		if strings.HasPrefix(l, " ") && strings.Contains(l, "\t") {
+			issues = append(issues,
+				fmtIssue(i, "mezcla de tabs y espacios en YAML"))
 		}
 	}
 
-	// ---------------------------------------------------------
-	// Reglas YAML (básicas)
-	// ---------------------------------------------------------
-	if lang == "yaml" {
-		if strings.Contains(content, "\t") {
-			warnings = append(warnings, map[string]interface{}{
-				"type":    "yaml_tabs",
-				"message": "YAML no debe usar tabs para indentación",
-			})
+	// 2. Claves sin valor
+	reKey := regexp.MustCompile(`^[A-Za-z0-9_-]+:\s*$`)
+	for i, l := range lines {
+		if reKey.MatchString(l) {
+			issues = append(issues,
+				fmtIssue(i, "clave YAML sin valor"))
 		}
 	}
 
-	return ToolResult{
-		ToolName: "lint_code",
-		Result: map[string]interface{}{
-			"path":     path,
-			"lang":     lang,
-			"warnings": warnings,
-			"count":    len(warnings),
-		},
+	return issues
+}
+
+// ------------------------------------------------------------
+// Lint genérico (texto)
+// ------------------------------------------------------------
+func lintGeneric(src string) []string {
+	var issues []string
+	lines := strings.Split(src, "\n")
+
+	// 1. Espacios al final
+	for i, l := range lines {
+		if strings.HasSuffix(l, " ") {
+			issues = append(issues,
+				fmtIssue(i, "espacios al final de línea"))
+		}
 	}
+
+	// 2. Líneas vacías duplicadas
+	lastEmpty := false
+	for i, l := range lines {
+		if strings.TrimSpace(l) == "" {
+			if lastEmpty {
+				issues = append(issues,
+					fmtIssue(i, "línea vacía duplicada"))
+			}
+			lastEmpty = true
+		} else {
+			lastEmpty = false
+		}
+	}
+
+	return issues
+}
+
+// ------------------------------------------------------------
+// Helper para formatear issues
+// ------------------------------------------------------------
+func fmtIssue(line int, msg string) string {
+	return fmt.Sprintf("línea %d: %s", line+1, msg)
 }

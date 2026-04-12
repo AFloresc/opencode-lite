@@ -8,12 +8,6 @@ import (
 	"strings"
 )
 
-// searchInFileTool
-// grepTool
-// searchReplaceTool
-// searchRegexTool
-// searchRegexMultiTool
-
 // search_in_file: busca texto dentro de un archivo y devuelve coincidencias con número de línea
 func searchInFileTool(args map[string]interface{}) ToolResult {
 	pathRaw, ok := args["path"]
