@@ -34,30 +34,31 @@ type ToolResult struct {
 //
 
 var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
-	"read_file":         readFileTool,
-	"write_file":        writeFileTool,
-	"apply_patch":       applyPatchTool,
-	"apply_patch_fuzzy": applyPatchFuzzyTool,
-	"apply_patch_auto":  applyPatchAutoTool,
-	"list_files":        listFilesTool,
-	"search_in_file":    searchInFileTool,
-	"grep":              grepTool,
-	"delete_file":       deleteFileTool,
-	"rename_file":       renameFileTool,
-	"copy_file":         copyFileTool,
-	"move_file":         moveFileTool,
-	"create_file":       createFileTool,
-	"file_exists":       fileExistsTool,
-	"read_dir":          readDirTool,
-	"append_file":       appendFileTool,
-	"truncate_file":     truncateFileTool,
-	"stat_file":         statFileTool,
-	"touch_file":        touchFileTool,
-	"search_replace":    searchReplaceTool,
-	"diff_files":        diffFilesTool,
-	"zip_dir":           zipDirTool,
-	"unzip":             unzipTool,
-	"search_regex":      searchRegexTool,
+	"read_file":              readFileTool,
+	"write_file":             writeFileTool,
+	"apply_patch":            applyPatchTool,
+	"apply_patch_fuzzy":      applyPatchFuzzyTool,
+	"apply_patch_auto":       applyPatchAutoTool,
+	"list_files":             listFilesTool,
+	"search_in_file":         searchInFileTool,
+	"grep":                   grepTool,
+	"delete_file":            deleteFileTool,
+	"rename_file":            renameFileTool,
+	"copy_file":              copyFileTool,
+	"move_file":              moveFileTool,
+	"create_file":            createFileTool,
+	"file_exists":            fileExistsTool,
+	"read_dir":               readDirTool,
+	"append_file":            appendFileTool,
+	"truncate_file":          truncateFileTool,
+	"stat_file":              statFileTool,
+	"touch_file":             touchFileTool,
+	"search_replace":         searchReplaceTool,
+	"diff_files":             diffFilesTool,
+	"zip_dir":                zipDirTool,
+	"unzip":                  unzipTool,
+	"search_regex":           searchRegexTool,
+	"apply_patch_structured": applyPatchStructuredTool,
 }
 
 //
@@ -1615,5 +1616,162 @@ func searchRegexTool(args map[string]interface{}) ToolResult {
 			"matches": results,
 			"count":   len(results),
 		},
+	}
+}
+
+// apply_patch_structured: modificaciones semánticas de alto nivel
+func applyPatchStructuredTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"apply_patch_structured", nil, "falta argumento obligatorio: path"}
+	}
+
+	opRaw, ok := args["op"]
+	if !ok {
+		return ToolResult{"apply_patch_structured", nil, "falta argumento obligatorio: op"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"apply_patch_structured", nil, "el argumento 'path' debe ser string"}
+	}
+
+	op, ok := opRaw.(string)
+	if !ok {
+		return ToolResult{"apply_patch_structured", nil, "el argumento 'op' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	contentBytes, err := os.ReadFile(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"apply_patch_structured", nil, fmt.Sprintf("el archivo '%s' no existe", path)}
+		}
+		return ToolResult{"apply_patch_structured", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+	}
+
+	content := string(contentBytes)
+	updated := content
+
+	switch op {
+
+	// ---------------------------------------------------------
+	// Insertar import
+	// ---------------------------------------------------------
+	case "insert_import":
+		importRaw := args["import"]
+		if importRaw == nil {
+			return ToolResult{"apply_patch_structured", nil, "falta argumento 'import'"}
+		}
+		importLine, _ := importRaw.(string)
+
+		re := regexp.MustCompile(`(?m)^import\s*\(`)
+		if re.MatchString(updated) {
+			updated = re.ReplaceAllString(updated, "import (\n    "+importLine)
+		} else {
+			updated = "import (\n    " + importLine + "\n)\n\n" + updated
+		}
+
+	// ---------------------------------------------------------
+	// Insertar antes de una función
+	// ---------------------------------------------------------
+	case "insert_before_func":
+		nameRaw := args["name"]
+		codeRaw := args["code"]
+		if nameRaw == nil || codeRaw == nil {
+			return ToolResult{"apply_patch_structured", nil, "faltan argumentos 'name' y/o 'code'"}
+		}
+		name := nameRaw.(string)
+		code := codeRaw.(string)
+
+		re := regexp.MustCompile(`(?m)^func\s+` + regexp.QuoteMeta(name) + `\s*\(`)
+		loc := re.FindStringIndex(updated)
+		if loc == nil {
+			return ToolResult{"apply_patch_structured", nil, "función no encontrada"}
+		}
+
+		updated = updated[:loc[0]] + code + "\n" + updated[loc[0]:]
+
+	// ---------------------------------------------------------
+	// Insertar después de una función
+	// ---------------------------------------------------------
+	case "insert_after_func":
+		nameRaw := args["name"]
+		codeRaw := args["code"]
+		if nameRaw == nil || codeRaw == nil {
+			return ToolResult{"apply_patch_structured", nil, "faltan argumentos 'name' y/o 'code'"}
+		}
+		name := nameRaw.(string)
+		code := codeRaw.(string)
+
+		re := regexp.MustCompile(`(?s)func\s+` + regexp.QuoteMeta(name) + `\s*\([^)]*\)\s*{.*?}`)
+		match := re.FindStringIndex(updated)
+		if match == nil {
+			return ToolResult{"apply_patch_structured", nil, "función no encontrada"}
+		}
+
+		updated = updated[:match[1]] + "\n" + code + "\n" + updated[match[1]:]
+
+	// ---------------------------------------------------------
+	// Reemplazar función completa
+	// ---------------------------------------------------------
+	case "replace_func":
+		nameRaw := args["name"]
+		codeRaw := args["code"]
+		if nameRaw == nil || codeRaw == nil {
+			return ToolResult{"apply_patch_structured", nil, "faltan argumentos 'name' y/o 'code'"}
+		}
+		name := nameRaw.(string)
+		code := codeRaw.(string)
+
+		re := regexp.MustCompile(`(?s)func\s+` + regexp.QuoteMeta(name) + `\s*\([^)]*\)\s*{.*?}`)
+		updated = re.ReplaceAllString(updated, code)
+
+	// ---------------------------------------------------------
+	// Eliminar función completa
+	// ---------------------------------------------------------
+	case "delete_func":
+		nameRaw := args["name"]
+		if nameRaw == nil {
+			return ToolResult{"apply_patch_structured", nil, "falta argumento 'name'"}
+		}
+		name := nameRaw.(string)
+
+		re := regexp.MustCompile(`(?s)func\s+` + regexp.QuoteMeta(name) + `\s*\([^)]*\)\s*{.*?}`)
+		updated = re.ReplaceAllString(updated, "")
+
+	// ---------------------------------------------------------
+	// Reemplazo por regex
+	// ---------------------------------------------------------
+	case "regex_replace":
+		regexRaw := args["regex"]
+		replaceRaw := args["replace"]
+		if regexRaw == nil || replaceRaw == nil {
+			return ToolResult{"apply_patch_structured", nil, "faltan argumentos 'regex' y/o 'replace'"}
+		}
+		regex := regexRaw.(string)
+		replace := replaceRaw.(string)
+
+		re, err := regexp.Compile(regex)
+		if err != nil {
+			return ToolResult{"apply_patch_structured", nil, fmt.Sprintf("regex inválida: %v", err)}
+		}
+
+		updated = re.ReplaceAllString(updated, replace)
+
+	default:
+		return ToolResult{"apply_patch_structured", nil, "operación desconocida"}
+	}
+
+	// Guardar archivo
+	err = os.WriteFile(fullPath, []byte(updated), 0644)
+	if err != nil {
+		return ToolResult{"apply_patch_structured", nil, fmt.Sprintf("error escribiendo archivo: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "apply_patch_structured",
+		Result:   fmt.Sprintf("parche estructurado aplicado correctamente a '%s'", path),
 	}
 }

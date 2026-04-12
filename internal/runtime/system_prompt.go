@@ -804,5 +804,50 @@ expresiones regulares, coincidencias avanzadas o estructuras específicas dentro
   ]
 }
 
+102. Existe una herramienta llamada "apply_patch_structured".
+Sus argumentos obligatorios son:
+- "path" (string): archivo dentro del workspace
+- "op" (string): tipo de operación estructurada
+
+103. Operaciones soportadas:
+- "insert_import": requiere "import"
+- "insert_before_func": requiere "name" y "code"
+- "insert_after_func": requiere "name" y "code"
+- "replace_func": requiere "name" y "code"
+- "delete_func": requiere "name"
+- "regex_replace": requiere "regex" y "replace"
+
+104. "apply_patch_structured" debe usarse cuando el usuario pida modificar código
+a nivel semántico (funciones, imports, bloques), no a nivel de texto plano.
+
+105. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "apply_patch_structured",
+      "arguments": {
+        "path": "main.go",
+        "op": "insert_import",
+        "import": "\"fmt\""
+      }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "apply_patch_structured",
+      "arguments": {
+        "path": "main.go",
+        "op": "replace_func",
+        "name": "Run",
+        "code": "func Run() { fmt.Println(\"nuevo código\") }"
+      }
+    }
+  ]
+}
+
 
 `
