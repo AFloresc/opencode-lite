@@ -1,0 +1,13 @@
+{
+  "providers": {
+    "localtools": {
+      "baseURL": "http://localhost:3001",
+      "models": {
+        "qwen-local": {
+          "model": "qwen2.5-coder"
+        }
+      }
+    }
+  },
+  "defaultModel": "localtools/qwen-local"
+}
