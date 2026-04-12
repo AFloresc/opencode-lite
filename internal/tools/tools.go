@@ -52,6 +52,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"stat_file":         statFileTool,
 	"touch_file":        touchFileTool,
 	"search_replace":    searchReplaceTool,
+	"diff_files":        diffFilesTool,
 }
 
 //
@@ -1274,5 +1275,82 @@ func applyPatchAutoTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "apply_patch_auto",
 		Result:   fmt.Sprintf("parche inteligente aplicado correctamente a '%s'", path),
+	}
+}
+
+// diff_files: compara dos archivos dentro del workspace y devuelve un diff estilo unified
+func diffFilesTool(args map[string]interface{}) ToolResult {
+	fromRaw, ok := args["from"]
+	if !ok {
+		return ToolResult{"diff_files", nil, "falta argumento obligatorio: from"}
+	}
+
+	toRaw, ok := args["to"]
+	if !ok {
+		return ToolResult{"diff_files", nil, "falta argumento obligatorio: to"}
+	}
+
+	from, ok := fromRaw.(string)
+	if !ok {
+		return ToolResult{"diff_files", nil, "el argumento 'from' debe ser string"}
+	}
+
+	to, ok := toRaw.(string)
+	if !ok {
+		return ToolResult{"diff_files", nil, "el argumento 'to' debe ser string"}
+	}
+
+	fullFrom := filepath.Join("workspace", from)
+	fullTo := filepath.Join("workspace", to)
+
+	// Leer archivos
+	aBytes, err := os.ReadFile(fullFrom)
+	if err != nil {
+		return ToolResult{"diff_files", nil, fmt.Sprintf("error leyendo '%s': %v", from, err)}
+	}
+
+	bBytes, err := os.ReadFile(fullTo)
+	if err != nil {
+		return ToolResult{"diff_files", nil, fmt.Sprintf("error leyendo '%s': %v", to, err)}
+	}
+
+	aLines := strings.Split(string(aBytes), "\n")
+	bLines := strings.Split(string(bBytes), "\n")
+
+	// Generar diff estilo unified
+	var diff strings.Builder
+	diff.WriteString(fmt.Sprintf("--- %s\n", from))
+	diff.WriteString(fmt.Sprintf("+++ %s\n", to))
+
+	max := len(aLines)
+	if len(bLines) > max {
+		max = len(bLines)
+	}
+
+	for i := 0; i < max; i++ {
+		var aLine, bLine string
+
+		if i < len(aLines) {
+			aLine = aLines[i]
+		}
+		if i < len(bLines) {
+			bLine = bLines[i]
+		}
+
+		if aLine == bLine {
+			diff.WriteString(" " + aLine + "\n")
+		} else {
+			if aLine != "" {
+				diff.WriteString("-" + aLine + "\n")
+			}
+			if bLine != "" {
+				diff.WriteString("+" + bLine + "\n")
+			}
+		}
+	}
+
+	return ToolResult{
+		ToolName: "diff_files",
+		Result:   diff.String(),
 	}
 }

@@ -669,4 +669,36 @@ preciso con offsets.
   ]
 }
 
+86. Existe una herramienta llamada "diff_files".
+Sus argumentos obligatorios son:
+- "from" (string): archivo origen dentro del workspace
+- "to" (string): archivo destino dentro del workspace
+
+87. "diff_files" debe usarse cuando el usuario pida comparar dos archivos o mostrar diferencias.
+
+88. El resultado debe ser un diff estilo unified, con líneas que empiezan por:
+- " " (sin cambios)
+- "-" (línea eliminada)
+- "+" (línea añadida)
+
+89. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "diff_files",
+      "arguments": { "from": "old.go", "to": "new.go" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "diff_files",
+      "arguments": { "from": "config_old.yaml", "to": "config_new.yaml" }
+    }
+  ]
+}
+
 `
