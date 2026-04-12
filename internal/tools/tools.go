@@ -38,6 +38,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"search_in_file":    searchInFileTool,
 	"grep":              grepTool,
 	"delete_file":       deleteFileTool,
+	"rename_file":       renameFileTool,
 }
 
 //
@@ -627,4 +628,53 @@ func deleteFileTool(args map[string]interface{}) ToolResult {
 	}
 
 	return ToolResult{"delete_file", fmt.Sprintf("archivo '%s' eliminado correctamente", path), ""}
+}
+
+// rename_file: renombra un archivo o directorio dentro del workspace
+func renameFileTool(args map[string]interface{}) ToolResult {
+	fromRaw, ok := args["from"]
+	if !ok {
+		return ToolResult{"rename_file", nil, "falta argumento obligatorio: from"}
+	}
+
+	toRaw, ok := args["to"]
+	if !ok {
+		return ToolResult{"rename_file", nil, "falta argumento obligatorio: to"}
+	}
+
+	from, ok := fromRaw.(string)
+	if !ok {
+		return ToolResult{"rename_file", nil, "el argumento 'from' debe ser string"}
+	}
+
+	to, ok := toRaw.(string)
+	if !ok {
+		return ToolResult{"rename_file", nil, "el argumento 'to' debe ser string"}
+	}
+
+	fullFrom := filepath.Join("workspace", from)
+	fullTo := filepath.Join("workspace", to)
+
+	// Verificar existencia del origen
+	if _, err := os.Stat(fullFrom); err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"rename_file", nil, fmt.Sprintf("el archivo o directorio '%s' no existe", from)}
+		}
+		return ToolResult{"rename_file", nil, fmt.Sprintf("error accediendo al origen: %v", err)}
+	}
+
+	// Crear directorios destino si no existen
+	if err := os.MkdirAll(filepath.Dir(fullTo), 0755); err != nil {
+		return ToolResult{"rename_file", nil, fmt.Sprintf("error creando directorios destino: %v", err)}
+	}
+
+	// Renombrar
+	if err := os.Rename(fullFrom, fullTo); err != nil {
+		return ToolResult{"rename_file", nil, fmt.Sprintf("error renombrando: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "rename_file",
+		Result:   fmt.Sprintf("'%s' renombrado a '%s' correctamente", from, to),
+	}
 }

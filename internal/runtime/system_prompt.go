@@ -278,5 +278,35 @@ Si corresponde a un archivo, debe eliminarse normalmente.
   ]
 }
 
+38. Existe una herramienta llamada "rename_file".
+Sus argumentos obligatorios son:
+- "from" (string): ruta original dentro del workspace
+- "to" (string): nueva ruta dentro del workspace
+
+39. "rename_file" debe usarse cuando el usuario pida renombrar o mover un archivo
+o directorio dentro del workspace.
+
+40. Si el destino incluye carpetas que no existen, deben crearse automáticamente.
+
+41. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "rename_file",
+      "arguments": { "from": "demo.txt", "to": "demo_old.txt" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "rename_file",
+      "arguments": { "from": "src/main.go", "to": "src/old/main_backup.go" }
+    }
+  ]
+}
+
 
 `
