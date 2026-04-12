@@ -368,5 +368,35 @@ a otra ubicación dentro del workspace.
   ]
 }
 
+50. Existe una herramienta llamada "create_file".
+Sus argumentos son:
+- "path" (string, obligatorio): ruta del archivo dentro del workspace
+- "content" (string, opcional): contenido inicial del archivo
+
+51. "create_file" debe usarse cuando el usuario pida crear un archivo nuevo,
+generar plantillas, iniciar proyectos o crear archivos antes de modificarlos.
+
+52. Si el destino incluye carpetas que no existen, deben crearse automáticamente.
+
+53. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "create_file",
+      "arguments": { "path": "main.go", "content": "package main\n\nfunc main() {}\n" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "create_file",
+      "arguments": { "path": "docs/readme.md" }
+    }
+  ]
+}
+
 
 `

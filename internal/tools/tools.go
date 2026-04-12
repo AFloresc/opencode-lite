@@ -42,6 +42,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"rename_file":       renameFileTool,
 	"copy_file":         copyFileTool,
 	"move_file":         moveFileTool,
+	"create_file":       createFileTool,
 }
 
 //
@@ -822,5 +823,43 @@ func moveFileTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "move_file",
 		Result:   fmt.Sprintf("'%s' movido a '%s' correctamente", from, to),
+	}
+}
+
+// create_file: crea un archivo dentro del workspace, con contenido opcional
+func createFileTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"create_file", nil, "falta argumento obligatorio: path"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"create_file", nil, "el argumento 'path' debe ser string"}
+	}
+
+	content := ""
+	if c, ok := args["content"]; ok {
+		if cStr, ok := c.(string); ok {
+			content = cStr
+		}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Crear directorios si no existen
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		return ToolResult{"create_file", nil, fmt.Sprintf("error creando directorios destino: %v", err)}
+	}
+
+	// Crear archivo con contenido
+	err := os.WriteFile(fullPath, []byte(content), 0644)
+	if err != nil {
+		return ToolResult{"create_file", nil, fmt.Sprintf("error creando archivo: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "create_file",
+		Result:   fmt.Sprintf("archivo '%s' creado correctamente", path),
 	}
 }
