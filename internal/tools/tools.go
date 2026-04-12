@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"archive/zip"
 	"fmt"
 	"io"
 	"os"
@@ -53,6 +54,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"touch_file":        touchFileTool,
 	"search_replace":    searchReplaceTool,
 	"diff_files":        diffFilesTool,
+	"zip_dir":           zipDirTool,
 }
 
 //
@@ -1352,5 +1354,106 @@ func diffFilesTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "diff_files",
 		Result:   diff.String(),
+	}
+}
+
+// zip_dir: comprime un directorio dentro del workspace en un archivo .zip
+func zipDirTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"zip_dir", nil, "falta argumento obligatorio: path"}
+	}
+
+	outRaw, ok := args["output"]
+	if !ok {
+		return ToolResult{"zip_dir", nil, "falta argumento obligatorio: output"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"zip_dir", nil, "el argumento 'path' debe ser string"}
+	}
+
+	output, ok := outRaw.(string)
+	if !ok {
+		return ToolResult{"zip_dir", nil, "el argumento 'output' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+	fullOutput := filepath.Join("workspace", output)
+
+	// Verificar que el directorio existe
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"zip_dir", nil, fmt.Sprintf("el directorio '%s' no existe", path)}
+		}
+		return ToolResult{"zip_dir", nil, fmt.Sprintf("error accediendo al directorio: %v", err)}
+	}
+
+	if !info.IsDir() {
+		return ToolResult{"zip_dir", nil, fmt.Sprintf("'%s' no es un directorio", path)}
+	}
+
+	// Crear directorios destino si no existen
+	if err := os.MkdirAll(filepath.Dir(fullOutput), 0755); err != nil {
+		return ToolResult{"zip_dir", nil, fmt.Sprintf("error creando directorios destino: %v", err)}
+	}
+
+	// Crear archivo zip
+	outFile, err := os.Create(fullOutput)
+	if err != nil {
+		return ToolResult{"zip_dir", nil, fmt.Sprintf("error creando archivo zip: %v", err)}
+	}
+	defer outFile.Close()
+
+	zipWriter := zip.NewWriter(outFile)
+	defer zipWriter.Close()
+
+	// Recorrer el directorio y añadir archivos
+	err = filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(fullPath, path)
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+
+		header.Name = relPath
+		header.Method = zip.Deflate
+
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+
+		_, err = io.Copy(writer, file)
+		return err
+	})
+
+	if err != nil {
+		return ToolResult{"zip_dir", nil, fmt.Sprintf("error comprimiendo directorio: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "zip_dir",
+		Result:   fmt.Sprintf("directorio '%s' comprimido correctamente en '%s'", path, output),
 	}
 }

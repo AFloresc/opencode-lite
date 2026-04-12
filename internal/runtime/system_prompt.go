@@ -701,4 +701,35 @@ Sus argumentos obligatorios son:
   ]
 }
 
+90. Existe una herramienta llamada "zip_dir".
+Sus argumentos obligatorios son:
+- "path" (string): directorio dentro del workspace a comprimir
+- "output" (string): ruta del archivo .zip resultante dentro del workspace
+
+91. "zip_dir" debe usarse cuando el usuario pida comprimir un directorio, generar un zip,
+crear un backup comprimido o empaquetar un proyecto.
+
+92. El resultado debe indicar la ruta del archivo zip generado.
+
+93. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "zip_dir",
+      "arguments": { "path": "src", "output": "backup/src.zip" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "zip_dir",
+      "arguments": { "path": "project", "output": "project.zip" }
+    }
+  ]
+}
+
+
 `
