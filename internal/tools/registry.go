@@ -1,6 +1,6 @@
 package tools
 
-var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
+var ToolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	// Filesystem
 	"read_file":     readFileTool,
 	"write_file":    writeFileTool,

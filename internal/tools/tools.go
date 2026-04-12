@@ -62,7 +62,7 @@ var toolRegistryOLD = map[string]func(map[string]interface{}) ToolResult{
 //
 
 func ExecuteTool(call ToolCall) ToolResult {
-	toolFunc, exists := toolRegistry[call.Name]
+	toolFunc, exists := ToolRegistry[call.Name]
 	if !exists {
 		return ToolResult{
 			ToolName: call.Name,
