@@ -628,4 +628,45 @@ Sus argumentos obligatorios son:
   ]
 }
 
+82. Existe una herramienta llamada "apply_patch_auto".
+Sus argumentos obligatorios son:
+- "path" (string): archivo dentro del workspace
+- "patch" (string): instrucciones de parche inteligente
+
+83. El parche inteligente soporta:
+- Líneas que empiezan con "+" para añadir contenido al final
+- Líneas que empiezan con "-" para eliminar todas las ocurrencias del texto
+- Líneas que empiezan con "~" para reemplazos inteligentes con formato:
+  ~texto_original => texto_nuevo
+
+84. "apply_patch_auto" debe usarse cuando el usuario pida modificar un archivo
+sin proporcionar contexto exacto o cuando el modelo no pueda generar un parche
+preciso con offsets.
+
+85. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "apply_patch_auto",
+      "arguments": {
+        "path": "main.go",
+        "patch": "+// nueva línea añadida"
+      }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "apply_patch_auto",
+      "arguments": {
+        "path": "config.yaml",
+        "patch": "~debug: true => debug: false"
+      }
+    }
+  ]
+}
+
 `

@@ -51,6 +51,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"stat_file":         statFileTool,
 	"touch_file":        touchFileTool,
 	"search_replace":    searchReplaceTool,
+	"apply_patch_auto":  applyPatchAutoTool,
 }
 
 //
@@ -1182,5 +1183,96 @@ func searchReplaceTool(args map[string]interface{}) ToolResult {
 			"replace":      replace,
 			"success":      true,
 		},
+	}
+}
+
+// apply_patch_auto: aplica un parche inteligente sin requerir contexto exacto
+func applyPatchAutoTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"apply_patch_auto", nil, "falta argumento obligatorio: path"}
+	}
+
+	patchRaw, ok := args["patch"]
+	if !ok {
+		return ToolResult{"apply_patch_auto", nil, "falta argumento obligatorio: patch"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"apply_patch_auto", nil, "el argumento 'path' debe ser string"}
+	}
+
+	patch, ok := patchRaw.(string)
+	if !ok {
+		return ToolResult{"apply_patch_auto", nil, "el argumento 'patch' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Leer archivo original
+	originalBytes, err := os.ReadFile(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"apply_patch_auto", nil, fmt.Sprintf("el archivo '%s' no existe", path)}
+		}
+		return ToolResult{"apply_patch_auto", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+	}
+
+	original := string(originalBytes)
+
+	// Dividir el parche en líneas
+	lines := strings.Split(patch, "\n")
+
+	var result strings.Builder
+	result.WriteString(original)
+
+	// Aplicación automática:
+	// - Si la línea empieza con "+" → añadir al final
+	// - Si empieza con "-" → eliminar todas las ocurrencias
+	// - Si empieza con "~" → reemplazo inteligente: "~buscar => reemplazo"
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		switch {
+		case strings.HasPrefix(line, "+"):
+			// Añadir al final
+			result.WriteString("\n" + strings.TrimPrefix(line, "+"))
+
+		case strings.HasPrefix(line, "-"):
+			// Eliminar todas las ocurrencias
+			target := strings.TrimPrefix(line, "-")
+			resultStr := result.String()
+			resultStr = strings.ReplaceAll(resultStr, target, "")
+			result.Reset()
+			result.WriteString(resultStr)
+
+		case strings.HasPrefix(line, "~"):
+			// Reemplazo inteligente "~buscar => reemplazo"
+			body := strings.TrimPrefix(line, "~")
+			parts := strings.SplitN(body, "=>", 2)
+			if len(parts) == 2 {
+				search := strings.TrimSpace(parts[0])
+				replace := strings.TrimSpace(parts[1])
+				resultStr := result.String()
+				resultStr = strings.ReplaceAll(resultStr, search, replace)
+				result.Reset()
+				result.WriteString(resultStr)
+			}
+		}
+	}
+
+	// Guardar archivo modificado
+	err = os.WriteFile(fullPath, []byte(result.String()), 0644)
+	if err != nil {
+		return ToolResult{"apply_patch_auto", nil, fmt.Sprintf("error escribiendo archivo: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "apply_patch_auto",
+		Result:   fmt.Sprintf("parche inteligente aplicado correctamente a '%s'", path),
 	}
 }
