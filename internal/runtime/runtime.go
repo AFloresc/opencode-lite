@@ -3,6 +3,7 @@ package runtime
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"opencode-lite/internal/providers"
 	"opencode-lite/internal/tools"
@@ -17,58 +18,111 @@ type ChatResponse struct {
 	ToolCalls []tools.ToolCall `json:"tool_calls,omitempty"`
 }
 
-func HandleChatWithOllama(provider *providers.OllamaProvider, req ChatRequest) (ChatResponse, []tools.ToolResult, error) {
+func HandleChatWithOllama(provider *providers.OllamaProvider, req ChatRequest, systemPrompt string) (ChatResponse, []tools.ToolResult, error) {
 
+	// Historial inicial
 	messages := []providers.OllamaChatMessage{
-		{Role: "system", Content: SystemPrompt},
+		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: req.Input},
 	}
 
+	// 1. Primer turno: el modelo decide si usar herramientas
 	raw, err := provider.Chat(messages)
 	if err != nil {
 		return ChatResponse{}, nil, err
 	}
+
 	fmt.Println("RAW RESPONSE FROM MODEL:")
 	fmt.Println(raw)
 
 	parsed, ok := parseChatResponse(raw)
 	if !ok {
-		// No se pudo parsear como JSON válido (ni normal ni doble)
-		return ChatResponse{
-			Message: raw,
-		}, nil, nil
+		// No es JSON válido → devolvemos texto
+		return ChatResponse{Message: raw}, nil, nil
 	}
 
-	// Ejecutar herramientas si las hay
-	var results []tools.ToolResult
+	// Si no hay tool_calls → respuesta final
+	if len(parsed.ToolCalls) == 0 {
+		return parsed, nil, nil
+	}
+
+	// 2. Ejecutar herramientas
+	var toolResults []tools.ToolResult
+
 	for _, tc := range parsed.ToolCalls {
 		res := tools.ExecuteTool(tc)
-		results = append(results, res)
+		toolResults = append(toolResults, res)
+
+		// Extraer path
+		path := ""
+		if p, ok := tc.Arguments["path"].(string); ok {
+			path = p
+		}
+
+		// Inyectar contenido real del archivo al modelo
+		messages = []providers.OllamaChatMessage{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: fmt.Sprintf(
+				"Contenido real del archivo %s:\n\n%s\n\nAhora responde basándote en este contenido.",
+				path,
+				res.Result,
+			)},
+		}
+
 	}
 
-	return parsed, results, nil
+	// 3. Segundo turno: el modelo responde basándose en el contenido real
+	raw2, err := provider.Chat(messages)
+	if err != nil {
+		return ChatResponse{}, toolResults, err
+	}
+
+	fmt.Println("RAW SECOND RESPONSE FROM MODEL:")
+	fmt.Println(raw2)
+
+	parsed2, ok := parseChatResponse(raw2)
+	if !ok {
+		return ChatResponse{Message: raw2}, toolResults, nil
+	}
+
+	return parsed2, toolResults, nil
 }
 
-// parseChatResponse intenta:
-// 1) parsear JSON normal
-// 2) si falla, parsear JSON doble (cadena que contiene JSON)
+//
+// PARSER ROBUSTO: extrae el primer objeto JSON válido usando conteo de llaves
+//
+
 func parseChatResponse(raw string) (ChatResponse, bool) {
 	var parsed ChatResponse
 
-	// 1. Intentar JSON normal
-	if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
-		return parsed, true
-	}
+	start := -1
+	braceCount := 0
 
-	// 2. Intentar JSON doble: raw es una cadena que contiene JSON
-	var inner string
-	if err := json.Unmarshal([]byte(raw), &inner); err == nil {
-		if err := json.Unmarshal([]byte(inner), &parsed); err == nil {
-			return parsed, true
+	for i, r := range raw {
+		if r == '{' {
+			if start == -1 {
+				start = i
+			}
+			braceCount++
+		} else if r == '}' {
+			if braceCount > 0 {
+				braceCount--
+				if braceCount == 0 && start != -1 {
+					jsonText := raw[start : i+1]
+					jsonText = strings.TrimSpace(jsonText)
+
+					if err := json.Unmarshal([]byte(jsonText), &parsed); err == nil {
+						return parsed, true
+					}
+
+					fmt.Println("no se pudo parsear JSON de la respuesta del modelo")
+					fmt.Println(jsonText)
+					return ChatResponse{}, false
+				}
+			}
 		}
 	}
 
-	// Nada funcionó
 	fmt.Println("no se pudo parsear JSON de la respuesta del modelo")
 	return ChatResponse{}, false
 }

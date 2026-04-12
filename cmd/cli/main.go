@@ -6,46 +6,57 @@ import (
 	"os"
 	"strings"
 
-	"opencode-lite/internal/config"
 	"opencode-lite/internal/providers"
 	"opencode-lite/internal/runtime"
 )
 
 func main() {
-	cfg, err := config.Load("opencode.json")
-	if err != nil {
-		fmt.Println("error loading config:", err)
-		return
-	}
+	reader := bufio.NewReader(os.Stdin)
 
-	// Cargamos el provider localtools → Ollama
-	p := providers.NewOllamaProvider(
-		cfg.Providers["localtools"].BaseURL,
-		cfg.Providers["localtools"].Models["qwen-local"].Model,
+	// Configura tu Ollama local
+	provider := providers.NewOllamaProvider(
+		"http://localhost:11434", // URL de Ollama
+		"qwen2.5-coder",          // Modelo que estés usando
 	)
 
-	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("OpenCode Lite + Ollama")
+	fmt.Println("Escribe 'exit' para salir.")
+	fmt.Println("--------------------------------------------------")
+
 	for {
 		fmt.Print("> ")
-		line, _ := reader.ReadString('\n')
-		line = strings.TrimSpace(line)
-		if line == "exit" {
-			break
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		if input == "exit" {
+			fmt.Println("Saliendo...")
+			return
 		}
 
-		resp, toolResults, err := runtime.HandleChatWithOllama(p, runtime.ChatRequest{Input: line})
+		// Construimos la request
+		req := runtime.ChatRequest{
+			Input: input,
+		}
+
+		// Llamamos al runtime con el system prompt
+		resp, toolResults, err := runtime.HandleChatWithOllama(provider, req, runtime.SystemPrompt)
 		if err != nil {
-			fmt.Println("error:", err)
+			fmt.Println("Error:", err)
 			continue
 		}
 
-		fmt.Println(resp.Message)
+		// Mostrar resultados de herramientas (si los hubo)
 		for _, tr := range toolResults {
 			if tr.Error != "" {
-				fmt.Println("Tool error:", tr.Error)
+				fmt.Printf("[Tool %s ERROR]: %s\n", tr.ToolName, tr.Error)
 			} else {
-				fmt.Println("Tool OK:", tr.Result)
+				fmt.Printf("[Tool %s OK]\n", tr.ToolName)
 			}
+		}
+
+		// Mostrar respuesta final del modelo
+		if resp.Message != "" {
+			fmt.Println(resp.Message)
 		}
 	}
 }

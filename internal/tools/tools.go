@@ -6,66 +6,82 @@ import (
 	"path/filepath"
 )
 
+//
+// Estructuras base
+//
+
+// ToolCall representa una llamada a herramienta generada por el modelo
 type ToolCall struct {
 	Name      string                 `json:"name"`
 	Arguments map[string]interface{} `json:"arguments"`
 }
 
+// ToolResult representa el resultado de ejecutar una herramienta
 type ToolResult struct {
-	Name   string      `json:"name"`
-	Result interface{} `json:"result"`
-	Error  string      `json:"error,omitempty"`
+	ToolName string      `json:"tool_name"`
+	Result   interface{} `json:"result"`
+	Error    string      `json:"error,omitempty"`
 }
+
+//
+// Registro de herramientas disponibles
+//
+
+var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
+	"read_file": readFileTool,
+}
+
+//
+// Función principal para ejecutar herramientas
+//
 
 func ExecuteTool(call ToolCall) ToolResult {
-	switch call.Name {
-	case "write_file":
-		return writeFileTool(call.Arguments)
-	default:
+	toolFunc, exists := toolRegistry[call.Name]
+	if !exists {
 		return ToolResult{
-			Name:  call.Name,
-			Error: "unknown tool",
+			ToolName: call.Name,
+			Error:    fmt.Sprintf("herramienta desconocida: %s", call.Name),
 		}
 	}
+
+	return toolFunc(call.Arguments)
 }
 
-func writeFileTool(args map[string]interface{}) ToolResult {
-	pathVal, ok1 := args["path"].(string)
-	contentVal, ok2 := args["content"].(string)
-	if !ok1 || !ok2 {
+//
+// Implementación de herramientas
+//
+
+// read_file: lee un archivo dentro del directorio workspace
+func readFileTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
 		return ToolResult{
-			Name:  "write_file",
-			Error: "invalid arguments",
+			ToolName: "read_file",
+			Error:    "falta argumento obligatorio: path",
 		}
 	}
 
-	// Crear siempre un workspace seguro
-	base := "workspace"
-
-	// Normalizar la ruta para evitar rutas absolutas o escapadas
-	clean := filepath.Clean(pathVal)
-
-	// Forzar que SIEMPRE escriba dentro de workspace/
-	safePath := filepath.Join(base, clean)
-
-	// Crear todas las carpetas necesarias
-	if err := os.MkdirAll(filepath.Dir(safePath), 0o755); err != nil {
+	path, ok := pathRaw.(string)
+	if !ok {
 		return ToolResult{
-			Name:  "write_file",
-			Error: fmt.Sprintf("mkdir: %v", err),
+			ToolName: "read_file",
+			Error:    "el argumento 'path' debe ser string",
 		}
 	}
 
-	// Escribir el archivo
-	if err := os.WriteFile(safePath, []byte(contentVal), 0o644); err != nil {
+	// 🔥 Siempre leemos desde workspace/
+	fullPath := filepath.Join("workspace", path)
+
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
 		return ToolResult{
-			Name:  "write_file",
-			Error: fmt.Sprintf("write: %v", err),
+			ToolName: "read_file",
+			Error:    fmt.Sprintf("error leyendo archivo: %v", err),
 		}
 	}
 
 	return ToolResult{
-		Name:   "write_file",
-		Result: fmt.Sprintf("file written: %s", safePath),
+		ToolName: "read_file",
+		Result:   string(data),
 	}
 }
