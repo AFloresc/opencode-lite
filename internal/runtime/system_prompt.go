@@ -849,5 +849,37 @@ a nivel semántico (funciones, imports, bloques), no a nivel de texto plano.
   ]
 }
 
+106. Existe una herramienta llamada "format_code".
+Sus argumentos son:
+- "path" (string, obligatorio): archivo dentro del workspace
+- "lang" (string, opcional): lenguaje a formatear ("go", "json", "yaml", "generic")
+
+107. Si "lang" no se especifica, debe detectarse automáticamente por extensión.
+
+108. "format_code" debe usarse cuando el usuario pida formatear, embellecer,
+ordenar o aplicar estilo a un archivo de código.
+
+109. El resultado debe indicar el lenguaje usado para el formateo.
+
+110. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "format_code",
+      "arguments": { "path": "main.go" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "format_code",
+      "arguments": { "path": "config.json", "lang": "json" }
+    }
+  ]
+}
+
 
 `
