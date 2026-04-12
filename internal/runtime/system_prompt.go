@@ -105,4 +105,50 @@ Segundo turno (tras recibir el contenido real):
   ]
 }
 
+16. Cuando el usuario pida modificar un archivo, el segundo turno NUNCA debe responder con "message".
+Debe responder SIEMPRE con una llamada a "apply_patch".
+
+17. El parche generado DEBE incluir:
+- Encabezados "--- original" y "+++ modified"
+- Al menos un hunk con formato: @@ -a,b +c,d @@
+- Líneas de contexto sin prefijo
+- Líneas eliminadas con "-"
+- Líneas añadidas con "+"
+
+18. El parche DEBE reflejar exactamente el contenido real del archivo recibido del runtime.
+No inventes líneas que no existan.
+No omitas líneas que sí existan.
+
+19. Ejemplo de parche válido:
+
+{
+  "tool_calls": [
+    {
+      "name": "apply_patch",
+      "arguments": {
+        "path": "demo.txt",
+        "patch": "--- original\n+++ modified\n@@ -1 +1 @@\n-hola\n+hola mundo"
+      }
+    }
+  ]
+}
+
+20. Si el archivo tiene más líneas, el parche DEBE incluir contexto real:
+
+Ejemplo:
+
+Contenido real:
+uno
+hola
+tres
+
+Parche correcto:
+--- original
++++ modified
+@@ -1,3 +1,3 @@
+ uno
+-hola
++hola mundo
+ tres
+
 `

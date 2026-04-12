@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -139,7 +140,7 @@ func writeFileTool(args map[string]interface{}) ToolResult {
 	}
 }
 
-// / apply_patch: aplica un parche unified diff real
+// apply_patch ULTRA: soporte para múltiples hunks, validación de contexto y detección de conflictos
 func applyPatchTool(args map[string]interface{}) ToolResult {
 	pathRaw, ok := args["path"]
 	if !ok {
@@ -170,43 +171,134 @@ func applyPatchTool(args map[string]interface{}) ToolResult {
 	}
 
 	original := strings.Split(string(originalBytes), "\n")
-	result := []string{}
-	i := 0 // índice en original
+	result := make([]string, 0, len(original))
 
 	lines := strings.Split(patch, "\n")
+	origIdx := 0 // índice en original
 
-	for _, line := range lines {
+	// Estado de conflicto
+	conflicts := []string{}
 
-		// Ignorar encabezados
-		if strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++") {
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+
+		// Ignorar encabezados de archivo
+		if strings.HasPrefix(line, "--- ") || strings.HasPrefix(line, "+++ ") {
 			continue
 		}
 
-		// Ignorar encabezados de hunk
+		// Hunk: @@ -a,b +c,d @@
 		if strings.HasPrefix(line, "@@") {
-			continue
-		}
+			// Ejemplo: @@ -1,3 +1,4 @@
+			parts := strings.Split(line, " ")
+			if len(parts) < 3 {
+				conflicts = append(conflicts, fmt.Sprintf("hunk mal formado: %s", line))
+				continue
+			}
 
-		// Línea eliminada
-		if strings.HasPrefix(line, "-") {
+			// Rango original: "-a,b"
+			oldRange := strings.TrimPrefix(parts[1], "-")
+			oldStartStr := strings.Split(oldRange, ",")[0]
+			oldStart, err := strconv.Atoi(oldStartStr)
+			if err != nil {
+				conflicts = append(conflicts, fmt.Sprintf("no se pudo parsear offset original en hunk: %s", line))
+				continue
+			}
+			oldStart-- // 1-based → 0-based
+
+			// Copiar líneas previas sin cambios
+			for origIdx < oldStart && origIdx < len(original) {
+				result = append(result, original[origIdx])
+				origIdx++
+			}
+
+			// Procesar hunk
 			i++
-			continue
-		}
+			for i < len(lines) {
+				hline := lines[i]
 
-		// Línea añadida
-		if strings.HasPrefix(line, "+") {
-			result = append(result, line[1:])
-			continue
-		}
+				// Nuevo hunk → retrocede uno para que el for externo lo procese
+				if strings.HasPrefix(hline, "@@") {
+					i--
+					break
+				}
 
-		// Línea sin prefijo → copiar del original
-		if i < len(original) {
-			result = append(result, original[i])
-			i++
+				// Encabezados de archivo dentro del diff
+				if strings.HasPrefix(hline, "--- ") || strings.HasPrefix(hline, "+++ ") {
+					// dejamos que el siguiente ciclo los ignore
+					break
+				}
+
+				// Línea eliminada: debe coincidir con original
+				if strings.HasPrefix(hline, "-") {
+					expected := hline[1:]
+					if origIdx >= len(original) || original[origIdx] != expected {
+						conflicts = append(conflicts, fmt.Sprintf(
+							"conflicto: se esperaba eliminar '%s' pero en el archivo hay '%s'",
+							expected,
+							func() string {
+								if origIdx < len(original) {
+									return original[origIdx]
+								}
+								return "<EOF>"
+							}(),
+						))
+					} else {
+						// Coincide → se elimina avanzando el índice
+						origIdx++
+					}
+					i++
+					continue
+				}
+
+				// Línea añadida
+				if strings.HasPrefix(hline, "+") {
+					result = append(result, hline[1:])
+					i++
+					continue
+				}
+
+				// Línea de contexto (sin prefijo): debe coincidir con original
+				if !strings.HasPrefix(hline, "+") && !strings.HasPrefix(hline, "-") {
+					if origIdx >= len(original) || original[origIdx] != hline {
+						conflicts = append(conflicts, fmt.Sprintf(
+							"conflicto en contexto: se esperaba '%s' pero en el archivo hay '%s'",
+							hline,
+							func() string {
+								if origIdx < len(original) {
+									return original[origIdx]
+								}
+								return "<EOF>"
+							}(),
+						))
+					} else {
+						result = append(result, original[origIdx])
+						origIdx++
+					}
+					i++
+					continue
+				}
+			}
+
+			continue
 		}
 	}
 
-	// Guardar archivo modificado
+	// Copiar el resto del archivo original
+	for origIdx < len(original) {
+		result = append(result, original[origIdx])
+		origIdx++
+	}
+
+	// Si hubo conflictos, no escribimos nada
+	if len(conflicts) > 0 {
+		return ToolResult{
+			ToolName: "apply_patch",
+			Result:   nil,
+			Error:    fmt.Sprintf("conflictos al aplicar el parche:\n%s", strings.Join(conflicts, "\n")),
+		}
+	}
+
 	final := strings.Join(result, "\n")
 	err = os.WriteFile(fullPath, []byte(final), 0644)
 	if err != nil {
