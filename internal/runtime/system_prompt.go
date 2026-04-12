@@ -761,5 +761,48 @@ restaurar un backup, importar un proyecto o extraer contenido comprimido.
   ]
 }
 
+98. Existe una herramienta llamada "search_regex".
+Sus argumentos obligatorios son:
+- "path" (string): archivo dentro del workspace
+- "regex" (string): expresión regular a buscar
+
+99. "search_regex" debe usarse cuando el usuario pida buscar patrones complejos,
+expresiones regulares, coincidencias avanzadas o estructuras específicas dentro de un archivo.
+
+100. El resultado debe incluir:
+- "path"
+- "regex"
+- "count": número de coincidencias
+- "matches": lista de objetos con:
+    - "start": índice inicial
+    - "end": índice final
+    - "match": texto encontrado
+
+101. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "search_regex",
+      "arguments": {
+        "path": "main.go",
+        "regex": "func\\s+[A-Z]\\w+"
+      }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "search_regex",
+      "arguments": {
+        "path": "config.yaml",
+        "regex": "port:\\s*[0-9]+"
+      }
+    }
+  ]
+}
+
 
 `

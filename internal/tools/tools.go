@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -56,6 +57,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"diff_files":        diffFilesTool,
 	"zip_dir":           zipDirTool,
 	"unzip":             unzipTool,
+	"search_regex":      searchRegexTool,
 }
 
 //
@@ -1547,5 +1549,71 @@ func unzipTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "unzip",
 		Result:   fmt.Sprintf("archivo '%s' descomprimido correctamente en '%s'", path, dest),
+	}
+}
+
+// search_regex: busca coincidencias usando expresiones regulares dentro de un archivo
+func searchRegexTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"search_regex", nil, "falta argumento obligatorio: path"}
+	}
+
+	regexRaw, ok := args["regex"]
+	if !ok {
+		return ToolResult{"search_regex", nil, "falta argumento obligatorio: regex"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"search_regex", nil, "el argumento 'path' debe ser string"}
+	}
+
+	regexStr, ok := regexRaw.(string)
+	if !ok {
+		return ToolResult{"search_regex", nil, "el argumento 'regex' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Leer archivo
+	contentBytes, err := os.ReadFile(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"search_regex", nil, fmt.Sprintf("el archivo '%s' no existe", path)}
+		}
+		return ToolResult{"search_regex", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+	}
+
+	content := string(contentBytes)
+
+	// Compilar regex
+	re, err := regexp.Compile(regexStr)
+	if err != nil {
+		return ToolResult{"search_regex", nil, fmt.Sprintf("regex inválida: %v", err)}
+	}
+
+	// Buscar coincidencias
+	matches := re.FindAllStringIndex(content, -1)
+
+	var results []map[string]interface{}
+	for _, m := range matches {
+		start := m[0]
+		end := m[1]
+		results = append(results, map[string]interface{}{
+			"start": start,
+			"end":   end,
+			"match": content[start:end],
+		})
+	}
+
+	return ToolResult{
+		ToolName: "search_regex",
+		Result: map[string]interface{}{
+			"path":    path,
+			"regex":   regexStr,
+			"matches": results,
+			"count":   len(results),
+		},
 	}
 }
