@@ -556,5 +556,33 @@ o directorio específico.
   ]
 }
 
+74. Existe una herramienta llamada "touch_file".
+Su argumento obligatorio es:
+- "path" (string): ruta del archivo dentro del workspace.
+
+75. "touch_file" debe usarse cuando el usuario pida crear un archivo vacío si no existe,
+o actualizar su timestamp si ya existe.
+
+76. Si el archivo no existe, debe crearse vacío. Si existe, solo debe actualizarse su timestamp.
+
+77. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "touch_file",
+      "arguments": { "path": "nuevo.txt" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "touch_file",
+      "arguments": { "path": "src/main.go" }
+    }
+  ]
+}
 
 `

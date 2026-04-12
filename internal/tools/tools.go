@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //
@@ -48,6 +49,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"append_file":       appendFileTool,
 	"truncate_file":     truncateFileTool,
 	"stat_file":         statFileTool,
+	"touch_file":        touchFileTool,
 }
 
 //
@@ -1065,5 +1067,50 @@ func statFileTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "stat_file",
 		Result:   result,
+	}
+}
+
+// touch_file: crea un archivo vacío si no existe o actualiza su timestamp
+func touchFileTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"touch_file", nil, "falta argumento obligatorio: path"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"touch_file", nil, "el argumento 'path' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Si el archivo no existe → crearlo vacío
+	_, err := os.Stat(fullPath)
+	if os.IsNotExist(err) {
+		// Crear directorios si no existen
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			return ToolResult{"touch_file", nil, fmt.Sprintf("error creando directorios destino: %v", err)}
+		}
+
+		err := os.WriteFile(fullPath, []byte(""), 0644)
+		if err != nil {
+			return ToolResult{"touch_file", nil, fmt.Sprintf("error creando archivo: %v", err)}
+		}
+
+		return ToolResult{
+			ToolName: "touch_file",
+			Result:   fmt.Sprintf("archivo '%s' creado correctamente", path),
+		}
+	}
+
+	// Si existe → actualizar timestamp
+	now := time.Now()
+	if err := os.Chtimes(fullPath, now, now); err != nil {
+		return ToolResult{"touch_file", nil, fmt.Sprintf("error actualizando timestamp: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "touch_file",
+		Result:   fmt.Sprintf("timestamp de '%s' actualizado correctamente", path),
 	}
 }
