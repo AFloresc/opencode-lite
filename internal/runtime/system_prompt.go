@@ -927,5 +927,46 @@ avanzadas recursivas.
   ]
 }
 
+116. Existe una herramienta llamada "lint_code".
+Sus argumentos son:
+- "path" (string, obligatorio): archivo dentro del workspace
+- "lang" (string, opcional): lenguaje ("go", "json", "yaml", "generic")
+
+117. Si "lang" no se especifica, debe detectarse automáticamente por extensión.
+
+118. "lint_code" debe usarse cuando el usuario pida analizar código, detectar errores,
+advertencias, problemas de estilo o realizar un linting básico.
+
+119. El resultado debe incluir:
+- "path"
+- "lang"
+- "warnings": lista de advertencias
+- "count": número total de advertencias
+
+120. Cada advertencia debe incluir:
+- "line" (si aplica)
+- "type"
+- "message"
+
+121. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "lint_code",
+      "arguments": { "path": "main.go" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "lint_code",
+      "arguments": { "path": "config.json", "lang": "json" }
+    }
+  ]
+}
+
 
 `
