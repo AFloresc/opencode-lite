@@ -36,6 +36,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"apply_patch_fuzzy": applyPatchFuzzyTool,
 	"list_files":        listFilesTool,
 	"search_in_file":    searchInFileTool,
+	"grep":              grepTool,
 }
 
 //
@@ -494,6 +495,94 @@ func searchInFileTool(args map[string]interface{}) ToolResult {
 
 	return ToolResult{
 		ToolName: "search_in_file",
+		Result:   results,
+	}
+}
+
+// grep: busca texto en todos los archivos del workspace (multi-archivo)
+func grepTool(args map[string]interface{}) ToolResult {
+	queryRaw, ok := args["query"]
+	if !ok {
+		return ToolResult{"grep", nil, "falta argumento obligatorio: query"}
+	}
+
+	query, ok := queryRaw.(string)
+	if !ok {
+		return ToolResult{"grep", nil, "el argumento 'query' debe ser string"}
+	}
+
+	extFilter := ""
+	if e, ok := args["ext"]; ok {
+		if eStr, ok := e.(string); ok {
+			extFilter = eStr
+		}
+	}
+
+	recursive := true
+	if r, ok := args["recursive"]; ok {
+		if rBool, ok := r.(bool); ok {
+			recursive = rBool
+		}
+	}
+
+	base := "workspace"
+	var results []map[string]interface{}
+
+	// Función para procesar un archivo
+	processFile := func(path string) error {
+		contentBytes, err := os.ReadFile(path)
+		if err != nil {
+			return nil // ignoramos errores por archivo
+		}
+
+		lines := strings.Split(string(contentBytes), "\n")
+		rel, _ := filepath.Rel(base, path)
+
+		for i, line := range lines {
+			if strings.Contains(line, query) {
+				results = append(results, map[string]interface{}{
+					"file":        rel,
+					"line_number": i + 1,
+					"line":        line,
+				})
+			}
+		}
+		return nil
+	}
+
+	if recursive {
+		// Recorrido recursivo
+		filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() {
+				return nil
+			}
+			if extFilter != "" && filepath.Ext(path) != extFilter {
+				return nil
+			}
+			return processFile(path)
+		})
+	} else {
+		// Solo nivel superior
+		entries, err := os.ReadDir(base)
+		if err != nil {
+			return ToolResult{"grep", nil, fmt.Sprintf("error leyendo directorio: %v", err)}
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			if extFilter != "" && filepath.Ext(entry.Name()) != extFilter {
+				continue
+			}
+			processFile(filepath.Join(base, entry.Name()))
+		}
+	}
+
+	return ToolResult{
+		ToolName: "grep",
 		Result:   results,
 	}
 }

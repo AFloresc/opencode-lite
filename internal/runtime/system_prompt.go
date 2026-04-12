@@ -219,4 +219,33 @@ Ejemplo:
   ]
 }
 
+31. Existe una herramienta llamada "grep".
+Sus argumentos son:
+- "query" (obligatorio, string)
+- "ext" (opcional, string, por ejemplo ".go")
+- "recursive" (opcional, booleano, por defecto true)
+
+32. "grep" debe usarse cuando el usuario pida buscar texto en múltiples archivos,
+buscar en todo el workspace, localizar funciones o patrones globales.
+
+33. El resultado debe ser una lista de objetos con:
+- "file"
+- "line_number"
+- "line"
+
+Ejemplo:
+
+{
+  "tool_calls": [
+    {
+      "name": "grep",
+      "arguments": {
+        "query": "func",
+        "ext": ".go",
+        "recursive": true
+      }
+    }
+  ]
+}
+
 `
