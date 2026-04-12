@@ -64,6 +64,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"format_code":            formatCodeTool,
 	"search_regex_multi":     searchRegexMultiTool,
 	"lint_code":              lintCodeTool,
+	"run_command":            runCommandTool,
 }
 
 //
@@ -2136,5 +2137,133 @@ func lintCodeTool(args map[string]interface{}) ToolResult {
 			"warnings": warnings,
 			"count":    len(warnings),
 		},
+	}
+}
+
+// run_command: ejecuta comandos sandboxed dentro del runtime del agente
+func runCommandTool(args map[string]interface{}) ToolResult {
+	cmdRaw, ok := args["cmd"]
+	if !ok {
+		return ToolResult{"run_command", nil, "falta argumento obligatorio: cmd"}
+	}
+
+	cmd, ok := cmdRaw.(string)
+	if !ok {
+		return ToolResult{"run_command", nil, "el argumento 'cmd' debe ser string"}
+	}
+
+	parts := strings.Fields(cmd)
+	if len(parts) == 0 {
+		return ToolResult{"run_command", nil, "comando vacío"}
+	}
+
+	main := parts[0]
+	argsList := parts[1:]
+
+	switch main {
+
+	// ---------------------------------------------------------
+	// count_lines <archivo>
+	// ---------------------------------------------------------
+	case "count_lines":
+		if len(argsList) != 1 {
+			return ToolResult{"run_command", nil, "uso: count_lines <archivo>"}
+		}
+
+		path := filepath.Join("workspace", argsList[0])
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+		}
+
+		lines := strings.Count(string(data), "\n") + 1
+
+		return ToolResult{
+			ToolName: "run_command",
+			Result: map[string]interface{}{
+				"command": main,
+				"lines":   lines,
+			},
+			Error: "",
+		}
+
+	// ---------------------------------------------------------
+	// file_size <archivo>
+	// ---------------------------------------------------------
+	case "file_size":
+		if len(argsList) != 1 {
+			return ToolResult{"run_command", nil, "uso: file_size <archivo>"}
+		}
+
+		path := filepath.Join("workspace", argsList[0])
+		info, err := os.Stat(path)
+		if err != nil {
+			return ToolResult{"run_command", nil, fmt.Sprintf("error accediendo al archivo: %v", err)}
+		}
+
+		return ToolResult{
+			ToolName: "run_command",
+			Result: map[string]interface{}{
+				"command": main,
+				"size":    info.Size(),
+			},
+			Error: "",
+		}
+
+	// ---------------------------------------------------------
+	// validate_json <archivo>
+	// ---------------------------------------------------------
+	case "validate_json":
+		if len(argsList) != 1 {
+			return ToolResult{"run_command", nil, "uso: validate_json <archivo>"}
+		}
+
+		path := filepath.Join("workspace", argsList[0])
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+		}
+
+		var js interface{}
+		err = json.Unmarshal(data, &js)
+		if err != nil {
+			return ToolResult{
+				ToolName: "run_command",
+				Result: map[string]interface{}{
+					"command": main,
+					"valid":   false,
+					"error":   err.Error(),
+				},
+				Error: "",
+			}
+		}
+
+		return ToolResult{
+			ToolName: "run_command",
+			Result: map[string]interface{}{
+				"command": main,
+				"valid":   true,
+			},
+			Error: "",
+		}
+
+	// ---------------------------------------------------------
+	// echo <texto>
+	// ---------------------------------------------------------
+	case "echo":
+		return ToolResult{
+			ToolName: "run_command",
+			Result: map[string]interface{}{
+				"command": main,
+				"output":  strings.Join(argsList, " "),
+			},
+			Error: "",
+		}
+
+	// ---------------------------------------------------------
+	// Comando desconocido
+	// ---------------------------------------------------------
+	default:
+		return ToolResult{"run_command", nil, fmt.Sprintf("comando no permitido o desconocido: %s", main)}
 	}
 }

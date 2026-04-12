@@ -968,5 +968,41 @@ advertencias, problemas de estilo o realizar un linting básico.
   ]
 }
 
+122. Existe una herramienta llamada "run_command".
+Su argumento obligatorio es:
+- "cmd" (string): comando sandboxed a ejecutar.
+
+123. "run_command" NO ejecuta comandos del sistema operativo real.
+Solo ejecuta comandos internos seguros definidos por el runtime.
+
+124. Comandos soportados:
+- "count_lines <archivo>"
+- "file_size <archivo>"
+- "validate_json <archivo>"
+- "echo <texto>"
+
+125. Si el usuario pide ejecutar un comando del sistema real, el agente debe rechazarlo
+y usar solo comandos sandboxed.
+
+126. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "run_command",
+      "arguments": { "cmd": "count_lines main.go" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "run_command",
+      "arguments": { "cmd": "validate_json config.json" }
+    }
+  ]
+}
+
 
 `
