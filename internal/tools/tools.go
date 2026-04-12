@@ -45,6 +45,8 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"create_file":       createFileTool,
 	"file_exists":       fileExistsTool,
 	"read_dir":          readDirTool,
+	"append_file":       appendFileTool,
+	"truncate_file":     truncateFileTool,
 }
 
 //
@@ -942,5 +944,89 @@ func readDirTool(args map[string]interface{}) ToolResult {
 	return ToolResult{
 		ToolName: "read_dir",
 		Result:   results,
+	}
+}
+
+// append_file: añade contenido al final de un archivo dentro del workspace
+func appendFileTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"append_file", nil, "falta argumento obligatorio: path"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"append_file", nil, "el argumento 'path' debe ser string"}
+	}
+
+	contentRaw, ok := args["content"]
+	if !ok {
+		return ToolResult{"append_file", nil, "falta argumento obligatorio: content"}
+	}
+
+	content, ok := contentRaw.(string)
+	if !ok {
+		return ToolResult{"append_file", nil, "el argumento 'content' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Verificar que el archivo existe
+	if _, err := os.Stat(fullPath); err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"append_file", nil, fmt.Sprintf("el archivo '%s' no existe", path)}
+		}
+		return ToolResult{"append_file", nil, fmt.Sprintf("error accediendo al archivo: %v", err)}
+	}
+
+	// Abrir en modo append
+	f, err := os.OpenFile(fullPath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return ToolResult{"append_file", nil, fmt.Sprintf("error abriendo archivo: %v", err)}
+	}
+	defer f.Close()
+
+	// Añadir contenido
+	if _, err := f.WriteString(content); err != nil {
+		return ToolResult{"append_file", nil, fmt.Sprintf("error escribiendo contenido: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "append_file",
+		Result:   fmt.Sprintf("contenido añadido correctamente a '%s'", path),
+	}
+}
+
+// truncate_file: vacía completamente un archivo dentro del workspace
+func truncateFileTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"truncate_file", nil, "falta argumento obligatorio: path"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"truncate_file", nil, "el argumento 'path' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Verificar que el archivo existe
+	if _, err := os.Stat(fullPath); err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"truncate_file", nil, fmt.Sprintf("el archivo '%s' no existe", path)}
+		}
+		return ToolResult{"truncate_file", nil, fmt.Sprintf("error accediendo al archivo: %v", err)}
+	}
+
+	// Truncar archivo (dejarlo vacío)
+	err := os.WriteFile(fullPath, []byte(""), 0644)
+	if err != nil {
+		return ToolResult{"truncate_file", nil, fmt.Sprintf("error truncando archivo: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "truncate_file",
+		Result:   fmt.Sprintf("archivo '%s' truncado correctamente", path),
 	}
 }

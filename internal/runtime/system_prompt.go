@@ -464,5 +464,63 @@ con metadatos (tamaño, permisos, fecha de modificación, tipo).
   ]
 }
 
+62. Existe una herramienta llamada "append_file".
+Sus argumentos obligatorios son:
+- "path" (string): ruta del archivo dentro del workspace
+- "content" (string): contenido a añadir al final del archivo
+
+63. "append_file" debe usarse cuando el usuario pida añadir texto al final de un archivo
+sin sobrescribir su contenido.
+
+64. El archivo debe existir previamente. Si no existe, debe devolverse un error.
+
+65. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "append_file",
+      "arguments": { "path": "log.txt", "content": "nueva línea\n" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "append_file",
+      "arguments": { "path": "src/main.go", "content": "\n// TODO: mejorar esta función\n" }
+    }
+  ]
+}
+
+66. Existe una herramienta llamada "truncate_file".
+Su argumento obligatorio es:
+- "path" (string): ruta del archivo dentro del workspace.
+
+67. "truncate_file" debe usarse cuando el usuario pida vaciar un archivo sin eliminarlo.
+
+68. El archivo debe existir previamente. Si no existe, debe devolverse un error.
+
+69. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "truncate_file",
+      "arguments": { "path": "log.txt" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "truncate_file",
+      "arguments": { "path": "src/output.txt" }
+    }
+  ]
+}
+
 
 `
