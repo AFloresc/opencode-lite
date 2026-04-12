@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -2161,29 +2162,36 @@ func runCommandTool(args map[string]interface{}) ToolResult {
 	main := parts[0]
 	argsList := parts[1:]
 
+	// Helper: leer archivo
+	readFile := func(rel string) (string, error) {
+		path := filepath.Join("workspace", rel)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return string(data), nil
+	}
+
 	switch main {
 
-	// ---------------------------------------------------------
-	// count_lines <archivo>
-	// ---------------------------------------------------------
+	// =========================================================
+	// COMANDOS EXISTENTES
+	// =========================================================
+
 	case "count_lines":
 		if len(argsList) != 1 {
 			return ToolResult{"run_command", nil, "uso: count_lines <archivo>"}
 		}
-		path := filepath.Join("workspace", argsList[0])
-		data, err := os.ReadFile(path)
+		content, err := readFile(argsList[0])
 		if err != nil {
-			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+			return ToolResult{"run_command", nil, err.Error()}
 		}
-		lines := strings.Count(string(data), "\n") + 1
+		lines := strings.Count(content, "\n") + 1
 		return ToolResult{"run_command", map[string]interface{}{
 			"command": main,
 			"lines":   lines,
 		}, ""}
 
-	// ---------------------------------------------------------
-	// file_size <archivo>
-	// ---------------------------------------------------------
 	case "file_size":
 		if len(argsList) != 1 {
 			return ToolResult{"run_command", nil, "uso: file_size <archivo>"}
@@ -2191,27 +2199,23 @@ func runCommandTool(args map[string]interface{}) ToolResult {
 		path := filepath.Join("workspace", argsList[0])
 		info, err := os.Stat(path)
 		if err != nil {
-			return ToolResult{"run_command", nil, fmt.Sprintf("error accediendo al archivo: %v", err)}
+			return ToolResult{"run_command", nil, err.Error()}
 		}
 		return ToolResult{"run_command", map[string]interface{}{
 			"command": main,
 			"size":    info.Size(),
 		}, ""}
 
-	// ---------------------------------------------------------
-	// validate_json <archivo>
-	// ---------------------------------------------------------
 	case "validate_json":
 		if len(argsList) != 1 {
 			return ToolResult{"run_command", nil, "uso: validate_json <archivo>"}
 		}
-		path := filepath.Join("workspace", argsList[0])
-		data, err := os.ReadFile(path)
+		content, err := readFile(argsList[0])
 		if err != nil {
-			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+			return ToolResult{"run_command", nil, err.Error()}
 		}
 		var js interface{}
-		err = json.Unmarshal(data, &js)
+		err = json.Unmarshal([]byte(content), &js)
 		if err != nil {
 			return ToolResult{"run_command", map[string]interface{}{
 				"command": main,
@@ -2224,53 +2228,39 @@ func runCommandTool(args map[string]interface{}) ToolResult {
 			"valid":   true,
 		}, ""}
 
-	// ---------------------------------------------------------
-	// echo <texto>
-	// ---------------------------------------------------------
 	case "echo":
 		return ToolResult{"run_command", map[string]interface{}{
 			"command": main,
 			"output":  strings.Join(argsList, " "),
 		}, ""}
 
-	// ---------------------------------------------------------
-	// word_count <archivo>
-	// ---------------------------------------------------------
 	case "word_count":
 		if len(argsList) != 1 {
 			return ToolResult{"run_command", nil, "uso: word_count <archivo>"}
 		}
-		path := filepath.Join("workspace", argsList[0])
-		data, err := os.ReadFile(path)
+		content, err := readFile(argsList[0])
 		if err != nil {
-			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+			return ToolResult{"run_command", nil, err.Error()}
 		}
-		words := len(strings.Fields(string(data)))
+		words := len(strings.Fields(content))
 		return ToolResult{"run_command", map[string]interface{}{
 			"command": main,
 			"words":   words,
 		}, ""}
 
-	// ---------------------------------------------------------
-	// char_count <archivo>
-	// ---------------------------------------------------------
 	case "char_count":
 		if len(argsList) != 1 {
 			return ToolResult{"run_command", nil, "uso: char_count <archivo>"}
 		}
-		path := filepath.Join("workspace", argsList[0])
-		data, err := os.ReadFile(path)
+		content, err := readFile(argsList[0])
 		if err != nil {
-			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+			return ToolResult{"run_command", nil, err.Error()}
 		}
 		return ToolResult{"run_command", map[string]interface{}{
 			"command": main,
-			"chars":   len(data),
+			"chars":   len(content),
 		}, ""}
 
-	// ---------------------------------------------------------
-	// sha256 <archivo>
-	// ---------------------------------------------------------
 	case "sha256":
 		if len(argsList) != 1 {
 			return ToolResult{"run_command", nil, "uso: sha256 <archivo>"}
@@ -2278,7 +2268,7 @@ func runCommandTool(args map[string]interface{}) ToolResult {
 		path := filepath.Join("workspace", argsList[0])
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+			return ToolResult{"run_command", nil, err.Error()}
 		}
 		sum := sha256.Sum256(data)
 		return ToolResult{"run_command", map[string]interface{}{
@@ -2286,9 +2276,6 @@ func runCommandTool(args map[string]interface{}) ToolResult {
 			"sha256":  fmt.Sprintf("%x", sum),
 		}, ""}
 
-	// ---------------------------------------------------------
-	// list_dir <directorio>
-	// ---------------------------------------------------------
 	case "list_dir":
 		if len(argsList) != 1 {
 			return ToolResult{"run_command", nil, "uso: list_dir <directorio>"}
@@ -2296,7 +2283,7 @@ func runCommandTool(args map[string]interface{}) ToolResult {
 		path := filepath.Join("workspace", argsList[0])
 		entries, err := os.ReadDir(path)
 		if err != nil {
-			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo directorio: %v", err)}
+			return ToolResult{"run_command", nil, err.Error()}
 		}
 		var names []string
 		for _, e := range entries {
@@ -2307,23 +2294,16 @@ func runCommandTool(args map[string]interface{}) ToolResult {
 			"entries": names,
 		}, ""}
 
-	// ---------------------------------------------------------
-	// head <archivo> <n>
-	// ---------------------------------------------------------
 	case "head":
 		if len(argsList) != 2 {
 			return ToolResult{"run_command", nil, "uso: head <archivo> <n>"}
 		}
-		path := filepath.Join("workspace", argsList[0])
-		n, err := strconv.Atoi(argsList[1])
+		content, err := readFile(argsList[0])
 		if err != nil {
-			return ToolResult{"run_command", nil, "n debe ser un número"}
+			return ToolResult{"run_command", nil, err.Error()}
 		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
-		}
-		lines := strings.Split(string(data), "\n")
+		n, _ := strconv.Atoi(argsList[1])
+		lines := strings.Split(content, "\n")
 		if n > len(lines) {
 			n = len(lines)
 		}
@@ -2332,23 +2312,16 @@ func runCommandTool(args map[string]interface{}) ToolResult {
 			"lines":   lines[:n],
 		}, ""}
 
-	// ---------------------------------------------------------
-	// tail <archivo> <n>
-	// ---------------------------------------------------------
 	case "tail":
 		if len(argsList) != 2 {
 			return ToolResult{"run_command", nil, "uso: tail <archivo> <n>"}
 		}
-		path := filepath.Join("workspace", argsList[0])
-		n, err := strconv.Atoi(argsList[1])
+		content, err := readFile(argsList[0])
 		if err != nil {
-			return ToolResult{"run_command", nil, "n debe ser un número"}
+			return ToolResult{"run_command", nil, err.Error()}
 		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
-		}
-		lines := strings.Split(string(data), "\n")
+		n, _ := strconv.Atoi(argsList[1])
+		lines := strings.Split(content, "\n")
 		if n > len(lines) {
 			n = len(lines)
 		}
@@ -2357,39 +2330,227 @@ func runCommandTool(args map[string]interface{}) ToolResult {
 			"lines":   lines[len(lines)-n:],
 		}, ""}
 
-	// ---------------------------------------------------------
-	// search <archivo> <texto>
-	// ---------------------------------------------------------
 	case "search":
 		if len(argsList) < 2 {
 			return ToolResult{"run_command", nil, "uso: search <archivo> <texto>"}
 		}
-		path := filepath.Join("workspace", argsList[0])
-		text := strings.Join(argsList[1:], " ")
-		data, err := os.ReadFile(path)
+		content, err := readFile(argsList[0])
 		if err != nil {
-			return ToolResult{"run_command", nil, fmt.Sprintf("error leyendo archivo: %v", err)}
+			return ToolResult{"run_command", nil, err.Error()}
 		}
-		content := string(data)
-		count := strings.Count(content, text)
+		query := strings.Join(argsList[1:], " ")
+		count := strings.Count(content, query)
 		return ToolResult{"run_command", map[string]interface{}{
 			"command": main,
-			"query":   text,
+			"query":   query,
 			"count":   count,
 		}, ""}
 
-	// ---------------------------------------------------------
-	// now
-	// ---------------------------------------------------------
 	case "now":
 		return ToolResult{"run_command", map[string]interface{}{
 			"command": main,
 			"time":    time.Now().Format(time.RFC3339),
 		}, ""}
 
-	// ---------------------------------------------------------
-	// Comando desconocido
-	// ---------------------------------------------------------
+	// =========================================================
+	// NUEVOS COMANDOS: ANÁLISIS DE CÓDIGO
+	// =========================================================
+
+	case "count_funcs":
+		if len(argsList) != 1 {
+			return ToolResult{"run_command", nil, "uso: count_funcs <archivo.go>"}
+		}
+		content, err := readFile(argsList[0])
+		if err != nil {
+			return ToolResult{"run_command", nil, err.Error()}
+		}
+		re := regexp.MustCompile(`(?m)^func\s+`)
+		return ToolResult{"run_command", map[string]interface{}{
+			"command": main,
+			"count":   len(re.FindAllStringIndex(content, -1)),
+		}, ""}
+
+	case "count_imports":
+		if len(argsList) != 1 {
+			return ToolResult{"run_command", nil, "uso: count_imports <archivo.go>"}
+		}
+		content, err := readFile(argsList[0])
+		if err != nil {
+			return ToolResult{"run_command", nil, err.Error()}
+		}
+		re := regexp.MustCompile(`"([^"]+)"`)
+		return ToolResult{"run_command", map[string]interface{}{
+			"command": main,
+			"imports": len(re.FindAllStringSubmatch(content, -1)),
+		}, ""}
+
+	case "find_structs":
+		if len(argsList) != 1 {
+			return ToolResult{"run_command", nil, "uso: find_structs <archivo.go>"}
+		}
+		content, err := readFile(argsList[0])
+		if err != nil {
+			return ToolResult{"run_command", nil, err.Error()}
+		}
+		re := regexp.MustCompile(`type\s+([A-Za-z0-9_]+)\s+struct`)
+		matches := re.FindAllStringSubmatch(content, -1)
+		var names []string
+		for _, m := range matches {
+			names = append(names, m[1])
+		}
+		return ToolResult{"run_command", map[string]interface{}{
+			"command": main,
+			"structs": names,
+		}, ""}
+
+	case "find_interfaces":
+		if len(argsList) != 1 {
+			return ToolResult{"run_command", nil, "uso: find_interfaces <archivo.go>"}
+		}
+		content, err := readFile(argsList[0])
+		if err != nil {
+			return ToolResult{"run_command", nil, err.Error()}
+		}
+		re := regexp.MustCompile(`type\s+([A-Za-z0-9_]+)\s+interface`)
+		matches := re.FindAllStringSubmatch(content, -1)
+		var names []string
+		for _, m := range matches {
+			names = append(names, m[1])
+		}
+		return ToolResult{"run_command", map[string]interface{}{
+			"command":    main,
+			"interfaces": names,
+		}, ""}
+
+	// =========================================================
+	// NUEVOS COMANDOS: PROYECTO
+	// =========================================================
+
+	case "project_stats":
+		root := filepath.Join("workspace")
+		var files, dirs int
+		filepath.Walk(root, func(_ string, info os.FileInfo, _ error) error {
+			if info.IsDir() {
+				dirs++
+			} else {
+				files++
+			}
+			return nil
+		})
+		return ToolResult{"run_command", map[string]interface{}{
+			"command": main,
+			"files":   files,
+			"dirs":    dirs,
+		}, ""}
+
+	case "largest_files":
+		root := filepath.Join("workspace")
+		type entry struct {
+			Path string
+			Size int64
+		}
+		var list []entry
+		filepath.Walk(root, func(p string, info os.FileInfo, _ error) error {
+			if !info.IsDir() {
+				list = append(list, entry{p, info.Size()})
+			}
+			return nil
+		})
+		sort.Slice(list, func(a, b int) bool { return list[a].Size > list[b].Size })
+		top := list
+		if len(top) > 10 {
+			top = top[:10]
+		}
+		out := []map[string]interface{}{}
+		for _, e := range top {
+			rel, _ := filepath.Rel(root, e.Path)
+			out = append(out, map[string]interface{}{
+				"path": rel,
+				"size": e.Size,
+			})
+		}
+		return ToolResult{"run_command", map[string]interface{}{
+			"command": main,
+			"largest": out,
+		}, ""}
+
+	case "file_tree":
+		root := filepath.Join("workspace")
+		var tree []string
+		filepath.Walk(root, func(p string, info os.FileInfo, _ error) error {
+			rel, _ := filepath.Rel(root, p)
+			tree = append(tree, rel)
+			return nil
+		})
+		return ToolResult{"run_command", map[string]interface{}{
+			"command": main,
+			"tree":    tree,
+		}, ""}
+
+	// =========================================================
+	// NUEVOS COMANDOS: INTELIGENTES
+	// =========================================================
+
+	case "detect_language":
+		if len(argsList) != 1 {
+			return ToolResult{"run_command", nil, "uso: detect_language <archivo>"}
+		}
+		ext := strings.ToLower(filepath.Ext(argsList[0]))
+		lang := "unknown"
+		switch ext {
+		case ".go":
+			lang = "go"
+		case ".json":
+			lang = "json"
+		case ".yaml", ".yml":
+			lang = "yaml"
+		case ".md":
+			lang = "markdown"
+		case ".txt":
+			lang = "text"
+		}
+		return ToolResult{"run_command", map[string]interface{}{
+			"command": main,
+			"lang":    lang,
+		}, ""}
+
+	case "summarize_file":
+		if len(argsList) != 1 {
+			return ToolResult{"run_command", nil, "uso: summarize_file <archivo>"}
+		}
+		content, err := readFile(argsList[0])
+		if err != nil {
+			return ToolResult{"run_command", nil, err.Error()}
+		}
+		lines := strings.Split(content, "\n")
+		summary := lines
+		if len(summary) > 5 {
+			summary = summary[:5]
+		}
+		return ToolResult{"run_command", map[string]interface{}{
+			"command": main,
+			"summary": summary,
+		}, ""}
+
+	case "extract_comments":
+		if len(argsList) != 1 {
+			return ToolResult{"run_command", nil, "uso: extract_comments <archivo.go>"}
+		}
+		content, err := readFile(argsList[0])
+		if err != nil {
+			return ToolResult{"run_command", nil, err.Error()}
+		}
+		re := regexp.MustCompile(`(?m)//.*$`)
+		comments := re.FindAllString(content, -1)
+		return ToolResult{"run_command", map[string]interface{}{
+			"command":  main,
+			"comments": comments,
+		}, ""}
+
+	// =========================================================
+	// DEFAULT
+	// =========================================================
+
 	default:
 		return ToolResult{"run_command", nil, fmt.Sprintf("comando no permitido o desconocido: %s", main)}
 	}
