@@ -37,6 +37,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"list_files":        listFilesTool,
 	"search_in_file":    searchInFileTool,
 	"grep":              grepTool,
+	"delete_file":       deleteFileTool,
 }
 
 //
@@ -585,4 +586,45 @@ func grepTool(args map[string]interface{}) ToolResult {
 		ToolName: "grep",
 		Result:   results,
 	}
+}
+
+// delete_file: elimina un archivo o directorio dentro del workspace
+func deleteFileTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"delete_file", nil, "falta argumento obligatorio: path"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"delete_file", nil, "el argumento 'path' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Verificar existencia
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"delete_file", nil, fmt.Sprintf("el archivo '%s' no existe", path)}
+		}
+		return ToolResult{"delete_file", nil, fmt.Sprintf("error accediendo al archivo: %v", err)}
+	}
+
+	// Si es directorio, eliminar recursivamente
+	if info.IsDir() {
+		err = os.RemoveAll(fullPath)
+		if err != nil {
+			return ToolResult{"delete_file", nil, fmt.Sprintf("error eliminando directorio: %v", err)}
+		}
+		return ToolResult{"delete_file", fmt.Sprintf("directorio '%s' eliminado correctamente", path), ""}
+	}
+
+	// Si es archivo, eliminar normalmente
+	err = os.Remove(fullPath)
+	if err != nil {
+		return ToolResult{"delete_file", nil, fmt.Sprintf("error eliminando archivo: %v", err)}
+	}
+
+	return ToolResult{"delete_file", fmt.Sprintf("archivo '%s' eliminado correctamente", path), ""}
 }

@@ -248,4 +248,35 @@ Ejemplo:
   ]
 }
 
+34. Existe una herramienta llamada "delete_file".
+Su argumento obligatorio es:
+- "path" (string)
+
+35. "delete_file" debe usarse cuando el usuario pida eliminar un archivo o directorio
+del workspace.
+
+36. Si el path corresponde a un directorio, debe eliminarse recursivamente.
+Si corresponde a un archivo, debe eliminarse normalmente.
+
+37. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "delete_file",
+      "arguments": { "path": "demo.txt" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "delete_file",
+      "arguments": { "path": "carpeta_temp" }
+    }
+  ]
+}
+
+
 `
