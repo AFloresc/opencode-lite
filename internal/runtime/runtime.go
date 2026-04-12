@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"opencode-lite/internal/providers"
 	"opencode-lite/internal/tools"
@@ -27,15 +28,18 @@ func HandleChatWithOllama(provider *providers.OllamaProvider, req ChatRequest) (
 	if err != nil {
 		return ChatResponse{}, nil, err
 	}
+	fmt.Println("RAW RESPONSE FROM MODEL:")
+	fmt.Println(raw)
 
-	var parsed ChatResponse
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-		// Si el modelo no devolvió JSON válido
+	parsed, ok := parseChatResponse(raw)
+	if !ok {
+		// No se pudo parsear como JSON válido (ni normal ni doble)
 		return ChatResponse{
 			Message: raw,
 		}, nil, nil
 	}
 
+	// Ejecutar herramientas si las hay
 	var results []tools.ToolResult
 	for _, tc := range parsed.ToolCalls {
 		res := tools.ExecuteTool(tc)
@@ -43,4 +47,28 @@ func HandleChatWithOllama(provider *providers.OllamaProvider, req ChatRequest) (
 	}
 
 	return parsed, results, nil
+}
+
+// parseChatResponse intenta:
+// 1) parsear JSON normal
+// 2) si falla, parsear JSON doble (cadena que contiene JSON)
+func parseChatResponse(raw string) (ChatResponse, bool) {
+	var parsed ChatResponse
+
+	// 1. Intentar JSON normal
+	if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
+		return parsed, true
+	}
+
+	// 2. Intentar JSON doble: raw es una cadena que contiene JSON
+	var inner string
+	if err := json.Unmarshal([]byte(raw), &inner); err == nil {
+		if err := json.Unmarshal([]byte(inner), &parsed); err == nil {
+			return parsed, true
+		}
+	}
+
+	// Nada funcionó
+	fmt.Println("no se pudo parsear JSON de la respuesta del modelo")
+	return ChatResponse{}, false
 }

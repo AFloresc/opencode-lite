@@ -39,14 +39,25 @@ func writeFileTool(args map[string]interface{}) ToolResult {
 		}
 	}
 
-	if err := os.MkdirAll(filepath.Dir(pathVal), 0o755); err != nil {
+	// Crear siempre un workspace seguro
+	base := "workspace"
+
+	// Normalizar la ruta para evitar rutas absolutas o escapadas
+	clean := filepath.Clean(pathVal)
+
+	// Forzar que SIEMPRE escriba dentro de workspace/
+	safePath := filepath.Join(base, clean)
+
+	// Crear todas las carpetas necesarias
+	if err := os.MkdirAll(filepath.Dir(safePath), 0o755); err != nil {
 		return ToolResult{
 			Name:  "write_file",
 			Error: fmt.Sprintf("mkdir: %v", err),
 		}
 	}
 
-	if err := os.WriteFile(pathVal, []byte(contentVal), 0o644); err != nil {
+	// Escribir el archivo
+	if err := os.WriteFile(safePath, []byte(contentVal), 0o644); err != nil {
 		return ToolResult{
 			Name:  "write_file",
 			Error: fmt.Sprintf("write: %v", err),
@@ -55,6 +66,6 @@ func writeFileTool(args map[string]interface{}) ToolResult {
 
 	return ToolResult{
 		Name:   "write_file",
-		Result: fmt.Sprintf("file written: %s", pathVal),
+		Result: fmt.Sprintf("file written: %s", safePath),
 	}
 }
