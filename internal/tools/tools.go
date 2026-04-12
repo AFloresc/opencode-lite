@@ -36,6 +36,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"write_file":        writeFileTool,
 	"apply_patch":       applyPatchTool,
 	"apply_patch_fuzzy": applyPatchFuzzyTool,
+	"apply_patch_auto":  applyPatchAutoTool,
 	"list_files":        listFilesTool,
 	"search_in_file":    searchInFileTool,
 	"grep":              grepTool,
@@ -51,7 +52,6 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"stat_file":         statFileTool,
 	"touch_file":        touchFileTool,
 	"search_replace":    searchReplaceTool,
-	"apply_patch_auto":  applyPatchAutoTool,
 }
 
 //
