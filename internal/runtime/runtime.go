@@ -85,6 +85,19 @@ func HandleChatWithOllama(provider *providers.OllamaProvider, req ChatRequest, s
 		return ChatResponse{Message: raw2}, toolResults, nil
 	}
 
+	// Si el segundo turno también trae tool_calls (como apply_patch), ejecútalas
+	if len(parsed2.ToolCalls) > 0 {
+		for _, tc := range parsed2.ToolCalls {
+			res := tools.ExecuteTool(tc)
+			toolResults = append(toolResults, res)
+		}
+
+		// Opcional: respuesta final simple tras ejecutar tools del segundo turno
+		return ChatResponse{
+			Message: "herramientas del segundo turno ejecutadas",
+		}, toolResults, nil
+	}
+
 	return parsed2, toolResults, nil
 }
 

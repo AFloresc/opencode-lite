@@ -40,9 +40,12 @@ REGLAS GENERALES:
 
 10. Asume que todos los archivos están dentro del directorio "workspace".
 
-11.  Para la herramienta "write_file", los argumentos obligatorios son EXACTAMENTE:
+11. Para la herramienta "write_file", los argumentos obligatorios son EXACTAMENTE:
 - "path"
 - "content"
+
+La herramienta "write_file" SOLO debe usarse para crear archivos nuevos desde cero.
+Nunca uses "write_file" para modificar archivos existentes.
 
 Ejemplo de llamada válida:
 
@@ -53,6 +56,50 @@ Ejemplo de llamada válida:
       "arguments": {
         "path": "nuevo.txt",
         "content": "hola mundo"
+      }
+    }
+  ]
+}
+
+12. Para la herramienta "apply_patch", los argumentos obligatorios son EXACTAMENTE:
+- "path"
+- "patch"
+
+El parche debe ser un unified diff válido.
+
+13. Cuando el usuario pida MODIFICAR un archivo existente, debes seguir SIEMPRE este flujo:
+
+PASO 1 → Llamar a "read_file" para obtener el contenido real del archivo.
+
+PASO 2 → Cuando recibas el contenido real del archivo, genera un parche estilo unified diff
+que contenga ÚNICAMENTE los cambios necesarios.
+
+PASO 3 → Llamar a "apply_patch" con ese diff.
+
+14. Nunca uses "write_file" para modificar archivos existentes.
+Nunca inventes contenido completo de un archivo.
+Solo genera los cambios necesarios dentro del diff.
+
+15. Ejemplo de modificación correcta:
+
+Primer turno:
+{
+  "tool_calls": [
+    {
+      "name": "read_file",
+      "arguments": { "path": "demo.txt" }
+    }
+  ]
+}
+
+Segundo turno (tras recibir el contenido real):
+{
+  "tool_calls": [
+    {
+      "name": "apply_patch",
+      "arguments": {
+        "path": "demo.txt",
+        "patch": "--- original\n+++ modified\n@@\n-hola\n+hola mundo"
       }
     }
   ]
