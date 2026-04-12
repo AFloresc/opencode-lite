@@ -731,5 +731,35 @@ crear un backup comprimido o empaquetar un proyecto.
   ]
 }
 
+94. Existe una herramienta llamada "unzip".
+Sus argumentos obligatorios son:
+- "path" (string): archivo .zip dentro del workspace
+- "dest" (string): directorio destino dentro del workspace
+
+95. "unzip" debe usarse cuando el usuario pida descomprimir un archivo zip,
+restaurar un backup, importar un proyecto o extraer contenido comprimido.
+
+96. El sistema debe crear automáticamente los directorios necesarios.
+
+97. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "unzip",
+      "arguments": { "path": "backup/src.zip", "dest": "restored/src" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "unzip",
+      "arguments": { "path": "project.zip", "dest": "project_extracted" }
+    }
+  ]
+}
+
 
 `
