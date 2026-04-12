@@ -34,6 +34,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"write_file":        writeFileTool,
 	"apply_patch":       applyPatchTool,
 	"apply_patch_fuzzy": applyPatchFuzzyTool,
+	"list_files":        listFilesTool,
 }
 
 //
@@ -382,4 +383,68 @@ func applyPatchFuzzyTool(args map[string]interface{}) ToolResult {
 	}
 
 	return ToolResult{"apply_patch_fuzzy", fmt.Sprintf("parche fuzzy aplicado correctamente a %s", fullPath), ""}
+}
+
+// list_files: lista archivos dentro del directorio workspace
+func listFilesTool(args map[string]interface{}) ToolResult {
+	recursive := false
+	extFilter := ""
+
+	// Argumento opcional: recursive
+	if r, ok := args["recursive"]; ok {
+		if rBool, ok := r.(bool); ok {
+			recursive = rBool
+		}
+	}
+
+	// Argumento opcional: ext
+	if e, ok := args["ext"]; ok {
+		if eStr, ok := e.(string); ok {
+			extFilter = eStr
+		}
+	}
+
+	base := "workspace"
+	var files []string
+
+	if recursive {
+		// Recorrido recursivo
+		err := filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			if extFilter != "" && filepath.Ext(path) != extFilter {
+				return nil
+			}
+			rel, _ := filepath.Rel(base, path)
+			files = append(files, rel)
+			return nil
+		})
+		if err != nil {
+			return ToolResult{"list_files", nil, fmt.Sprintf("error recorriendo directorio: %v", err)}
+		}
+	} else {
+		// Solo nivel superior
+		entries, err := os.ReadDir(base)
+		if err != nil {
+			return ToolResult{"list_files", nil, fmt.Sprintf("error leyendo directorio: %v", err)}
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			if extFilter != "" && filepath.Ext(entry.Name()) != extFilter {
+				continue
+			}
+			files = append(files, entry.Name())
+		}
+	}
+
+	return ToolResult{
+		ToolName: "list_files",
+		Result:   files,
+	}
 }

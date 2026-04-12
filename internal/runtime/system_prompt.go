@@ -165,4 +165,32 @@ Puede modificar líneas parcialmente, duplicar cambios o añadir contenido al fi
 Si el usuario quiere aplicar un parche repetidamente o sin coincidencia exacta,
 debe usar "apply_patch_fuzzy".
 
+25. Existe una herramienta llamada "list_files".
+Sus argumentos son:
+- "recursive" (opcional, booleano)
+- "ext" (opcional, string, por ejemplo ".go")
+
+26. "list_files" debe usarse cuando el usuario pida ver qué archivos existen,
+explorar el workspace, buscar archivos por extensión o inspeccionar la estructura.
+
+27. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "list_files",
+      "arguments": { "recursive": true }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "list_files",
+      "arguments": { "ext": ".go" }
+    }
+  ]
+}
+
 `
