@@ -338,5 +338,35 @@ Si el destino incluye carpetas que no existen, deben crearse automáticamente.
   ]
 }
 
+46. Existe una herramienta llamada "move_file".
+Sus argumentos obligatorios son:
+- "from" (string): ruta origen dentro del workspace
+- "to" (string): ruta destino dentro del workspace
+
+47. "move_file" debe usarse cuando el usuario pida mover un archivo o directorio
+a otra ubicación dentro del workspace.
+
+48. Si el destino incluye carpetas que no existen, deben crearse automáticamente.
+
+49. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "move_file",
+      "arguments": { "from": "demo.txt", "to": "archivos/demo.txt" }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "move_file",
+      "arguments": { "from": "src/utils", "to": "src/legacy/utils" }
+    }
+  ]
+}
+
 
 `

@@ -41,6 +41,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"delete_file":       deleteFileTool,
 	"rename_file":       renameFileTool,
 	"copy_file":         copyFileTool,
+	"move_file":         moveFileTool,
 }
 
 //
@@ -773,4 +774,53 @@ func copySingleFile(src, dst string) error {
 	}
 
 	return out.Close()
+}
+
+// move_file: mueve un archivo o directorio dentro del workspace
+func moveFileTool(args map[string]interface{}) ToolResult {
+	fromRaw, ok := args["from"]
+	if !ok {
+		return ToolResult{"move_file", nil, "falta argumento obligatorio: from"}
+	}
+
+	toRaw, ok := args["to"]
+	if !ok {
+		return ToolResult{"move_file", nil, "falta argumento obligatorio: to"}
+	}
+
+	from, ok := fromRaw.(string)
+	if !ok {
+		return ToolResult{"move_file", nil, "el argumento 'from' debe ser string"}
+	}
+
+	to, ok := toRaw.(string)
+	if !ok {
+		return ToolResult{"move_file", nil, "el argumento 'to' debe ser string"}
+	}
+
+	fullFrom := filepath.Join("workspace", from)
+	fullTo := filepath.Join("workspace", to)
+
+	// Verificar existencia del origen
+	if _, err := os.Stat(fullFrom); err != nil {
+		if os.IsNotExist(err) {
+			return ToolResult{"move_file", nil, fmt.Sprintf("el archivo o directorio '%s' no existe", from)}
+		}
+		return ToolResult{"move_file", nil, fmt.Sprintf("error accediendo al origen: %v", err)}
+	}
+
+	// Crear directorios destino si no existen
+	if err := os.MkdirAll(filepath.Dir(fullTo), 0755); err != nil {
+		return ToolResult{"move_file", nil, fmt.Sprintf("error creando directorios destino: %v", err)}
+	}
+
+	// Mover (rename)
+	if err := os.Rename(fullFrom, fullTo); err != nil {
+		return ToolResult{"move_file", nil, fmt.Sprintf("error moviendo archivo o directorio: %v", err)}
+	}
+
+	return ToolResult{
+		ToolName: "move_file",
+		Result:   fmt.Sprintf("'%s' movido a '%s' correctamente", from, to),
+	}
 }
