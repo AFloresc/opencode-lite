@@ -30,9 +30,10 @@ type ToolResult struct {
 //
 
 var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
-	"read_file":   readFileTool,
-	"write_file":  writeFileTool,
-	"apply_patch": applyPatchTool,
+	"read_file":         readFileTool,
+	"write_file":        writeFileTool,
+	"apply_patch":       applyPatchTool,
+	"apply_patch_fuzzy": applyPatchFuzzyTool,
 }
 
 //
@@ -306,4 +307,79 @@ func applyPatchTool(args map[string]interface{}) ToolResult {
 	}
 
 	return ToolResult{"apply_patch", fmt.Sprintf("parche aplicado correctamente a %s", fullPath), ""}
+}
+
+// apply_patch_fuzzy: aplica un parche aunque el contexto no coincida exactamente.
+// Permite duplicar cambios y modificar líneas parcialmente.
+func applyPatchFuzzyTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"apply_patch_fuzzy", nil, "falta argumento obligatorio: path"}
+	}
+
+	patchRaw, ok := args["patch"]
+	if !ok {
+		return ToolResult{"apply_patch_fuzzy", nil, "falta argumento obligatorio: patch"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"apply_patch_fuzzy", nil, "el argumento 'path' debe ser string"}
+	}
+
+	patch, ok := patchRaw.(string)
+	if !ok {
+		return ToolResult{"apply_patch_fuzzy", nil, "el argumento 'patch' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	// Leer archivo original
+	originalBytes, err := os.ReadFile(fullPath)
+	if err != nil {
+		return ToolResult{"apply_patch_fuzzy", nil, fmt.Sprintf("error leyendo archivo original: %v", err)}
+	}
+
+	original := strings.Split(string(originalBytes), "\n")
+	result := make([]string, 0, len(original))
+
+	lines := strings.Split(patch, "\n")
+
+	// Extraer líneas - y +
+	var toRemove []string
+	var toAdd []string
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "-") {
+			toRemove = append(toRemove, line[1:])
+		}
+		if strings.HasPrefix(line, "+") {
+			toAdd = append(toAdd, line[1:])
+		}
+	}
+
+	// Aplicación fuzzy
+	for _, line := range original {
+		removed := false
+		for _, r := range toRemove {
+			if strings.Contains(line, r) {
+				removed = true
+				break
+			}
+		}
+		if !removed {
+			result = append(result, line)
+		}
+	}
+
+	// Añadir líneas nuevas al final
+	result = append(result, toAdd...)
+
+	final := strings.Join(result, "\n")
+	err = os.WriteFile(fullPath, []byte(final), 0644)
+	if err != nil {
+		return ToolResult{"apply_patch_fuzzy", nil, fmt.Sprintf("error escribiendo archivo modificado: %v", err)}
+	}
+
+	return ToolResult{"apply_patch_fuzzy", fmt.Sprintf("parche fuzzy aplicado correctamente a %s", fullPath), ""}
 }

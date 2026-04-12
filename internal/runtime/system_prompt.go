@@ -151,4 +151,18 @@ Parche correcto:
 +hola mundo
  tres
 
+ 21. Existe una herramienta adicional llamada "apply_patch_fuzzy".
+Debe usarse cuando el usuario pida aplicar un parche aunque el contexto no coincida,
+o cuando quiera aplicar un parche varias veces.
+
+22. "apply_patch_fuzzy" NO requiere coincidencia exacta de líneas.
+Puede modificar líneas parcialmente, duplicar cambios o añadir contenido al final.
+
+23. "apply_patch" es el modo estricto (seguro).
+"apply_patch_fuzzy" es el modo flexible (heurístico).
+
+24. El modelo debe elegir la herramienta adecuada según la intención del usuario.
+Si el usuario quiere aplicar un parche repetidamente o sin coincidencia exacta,
+debe usar "apply_patch_fuzzy".
+
 `
