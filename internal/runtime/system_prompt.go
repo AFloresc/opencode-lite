@@ -430,5 +430,39 @@ mover o parchear.
   ]
 }
 
+58. Existe una herramienta llamada "read_dir".
+Su argumento obligatorio es:
+- "path" (string): ruta del directorio dentro del workspace.
+
+59. "read_dir" debe usarse cuando el usuario pida listar el contenido de un directorio
+con metadatos (tamaño, permisos, fecha de modificación, tipo).
+
+60. El resultado debe ser una lista de objetos con:
+- "name": nombre del archivo o carpeta
+- "is_dir": booleano
+- "size": tamaño en bytes
+- "modified": fecha de modificación
+- "permissions": permisos del sistema
+
+61. Ejemplos válidos:
+
+{
+  "tool_calls": [
+    {
+      "name": "read_dir",
+      "arguments": { "path": "." }
+    }
+  ]
+}
+
+{
+  "tool_calls": [
+    {
+      "name": "read_dir",
+      "arguments": { "path": "src" }
+    }
+  ]
+}
+
 
 `

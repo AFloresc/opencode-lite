@@ -44,6 +44,7 @@ var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
 	"move_file":         moveFileTool,
 	"create_file":       createFileTool,
 	"file_exists":       fileExistsTool,
+	"read_dir":          readDirTool,
 }
 
 //
@@ -899,5 +900,47 @@ func fileExistsTool(args map[string]interface{}) ToolResult {
 			"exists": true,
 			"path":   path,
 		},
+	}
+}
+
+// read_dir: lista el contenido de un directorio con metadatos
+func readDirTool(args map[string]interface{}) ToolResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return ToolResult{"read_dir", nil, "falta argumento obligatorio: path"}
+	}
+
+	path, ok := pathRaw.(string)
+	if !ok {
+		return ToolResult{"read_dir", nil, "el argumento 'path' debe ser string"}
+	}
+
+	fullPath := filepath.Join("workspace", path)
+
+	entries, err := os.ReadDir(fullPath)
+	if err != nil {
+		return ToolResult{"read_dir", nil, fmt.Sprintf("error leyendo directorio: %v", err)}
+	}
+
+	var results []map[string]interface{}
+
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		results = append(results, map[string]interface{}{
+			"name":        entry.Name(),
+			"is_dir":      entry.IsDir(),
+			"size":        info.Size(),
+			"modified":    info.ModTime().String(),
+			"permissions": info.Mode().String(),
+		})
+	}
+
+	return ToolResult{
+		ToolName: "read_dir",
+		Result:   results,
 	}
 }
