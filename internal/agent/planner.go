@@ -22,9 +22,9 @@ type MemoryPlanner struct {
 	Memory *PlannerMemory
 }
 
-func NewMemoryPlanner() *MemoryPlanner {
-	mem := NewPlannerMemory()
-	mem.Load() // ← carga memoria persistente
+func NewMemoryPlanner(projectID string) *MemoryPlanner {
+	mem := NewPlannerMemory(projectID)
+	_ = mem.Load()
 
 	return &MemoryPlanner{
 		Memory: mem,
@@ -40,12 +40,6 @@ func (p *MemoryPlanner) MakePlan(goal string) Plan {
 
 	return plan
 }
-
-//
-// ============================
-// PLAN BASE
-// ============================
-//
 
 func (p *MemoryPlanner) basePlan(goal string) Plan {
 	switch {
@@ -74,21 +68,13 @@ func (p *MemoryPlanner) basePlan(goal string) Plan {
 	return Plan{Steps: []PlanStep{{goal}}}
 }
 
-//
-// ============================
-// HEURÍSTICAS BASADAS EN MEMORIA
-// ============================
-//
-
 func (p *MemoryPlanner) applyMemoryHeuristics(plan Plan) Plan {
-	// Ordenar por éxito histórico
 	sort.Slice(plan.Steps, func(i, j int) bool {
 		a := strings.ToLower(plan.Steps[i].Description)
 		b := strings.ToLower(plan.Steps[j].Description)
 		return p.Memory.SuccessfulSteps[a] > p.Memory.SuccessfulSteps[b]
 	})
 
-	// Eliminar pasos que fallaron repetidamente
 	filtered := []PlanStep{}
 	for _, step := range plan.Steps {
 		if p.Memory.FailedSteps[strings.ToLower(step.Description)] < 3 {
@@ -100,12 +86,6 @@ func (p *MemoryPlanner) applyMemoryHeuristics(plan Plan) Plan {
 	return plan
 }
 
-//
-// ============================
-// ACTUALIZAR MEMORIA Y GUARDAR
-// ============================
-//
-
 func (p *MemoryPlanner) UpdateMemory(ctx AgentContext) {
 	for _, step := range ctx.History {
 		if step.Output.Error == "" {
@@ -115,5 +95,5 @@ func (p *MemoryPlanner) UpdateMemory(ctx AgentContext) {
 		}
 	}
 
-	p.Memory.Save() // ← persistencia automática
+	_ = p.Memory.Save()
 }

@@ -9,6 +9,13 @@ type AgentRuntime struct {
 	Planner Planner
 }
 
+func NewAgentRuntime(projectID string, policy AgentPolicy) *AgentRuntime {
+	return &AgentRuntime{
+		Policy:  policy,
+		Planner: NewMemoryPlanner(projectID),
+	}
+}
+
 func (rt *AgentRuntime) Run(goal string) AgentContext {
 	ctx := AgentContext{
 		Goal:   goal,
