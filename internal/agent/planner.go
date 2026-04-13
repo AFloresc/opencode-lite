@@ -23,8 +23,11 @@ type MemoryPlanner struct {
 }
 
 func NewMemoryPlanner() *MemoryPlanner {
+	mem := NewPlannerMemory()
+	mem.Load() // ← carga memoria persistente
+
 	return &MemoryPlanner{
-		Memory: NewPlannerMemory(),
+		Memory: mem,
 	}
 }
 
@@ -32,10 +35,7 @@ func (p *MemoryPlanner) MakePlan(goal string) Plan {
 	g := strings.ToLower(goal)
 	p.Memory.RecordGoal(g)
 
-	// Base plan (como el planner avanzado anterior)
 	plan := p.basePlan(g)
-
-	// Ajustar plan según memoria
 	plan = p.applyMemoryHeuristics(plan)
 
 	return plan
@@ -43,7 +43,7 @@ func (p *MemoryPlanner) MakePlan(goal string) Plan {
 
 //
 // ============================
-// PLAN BASE (igual que el avanzado anterior)
+// PLAN BASE
 // ============================
 //
 
@@ -69,15 +69,6 @@ func (p *MemoryPlanner) basePlan(goal string) Plan {
 				{"resumir archivo"},
 			},
 		}
-
-	case containsAny(goal, "limpiar proyecto", "clean project"):
-		return Plan{
-			Steps: []PlanStep{
-				{"listar archivos"},
-				{"limpiar imports"},
-				{"formatear"},
-			},
-		}
 	}
 
 	return Plan{Steps: []PlanStep{{goal}}}
@@ -90,15 +81,14 @@ func (p *MemoryPlanner) basePlan(goal string) Plan {
 //
 
 func (p *MemoryPlanner) applyMemoryHeuristics(plan Plan) Plan {
-	// Ordenar pasos según éxito histórico
+	// Ordenar por éxito histórico
 	sort.Slice(plan.Steps, func(i, j int) bool {
 		a := strings.ToLower(plan.Steps[i].Description)
 		b := strings.ToLower(plan.Steps[j].Description)
-
 		return p.Memory.SuccessfulSteps[a] > p.Memory.SuccessfulSteps[b]
 	})
 
-	// Eliminar pasos que fallaron muchas veces
+	// Eliminar pasos que fallaron repetidamente
 	filtered := []PlanStep{}
 	for _, step := range plan.Steps {
 		if p.Memory.FailedSteps[strings.ToLower(step.Description)] < 3 {
@@ -112,7 +102,7 @@ func (p *MemoryPlanner) applyMemoryHeuristics(plan Plan) Plan {
 
 //
 // ============================
-// ACTUALIZAR MEMORIA DESPUÉS DE EJECUTAR
+// ACTUALIZAR MEMORIA Y GUARDAR
 // ============================
 //
 
@@ -124,4 +114,6 @@ func (p *MemoryPlanner) UpdateMemory(ctx AgentContext) {
 			p.Memory.RecordFailure(step.Action)
 		}
 	}
+
+	p.Memory.Save() // ← persistencia automática
 }
