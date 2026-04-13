@@ -47,6 +47,7 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 			ctx.LastResult = result
 		}
 	}
+	rt.Planner.UpdateMemory(ctx)
 
 	return ctx
 }

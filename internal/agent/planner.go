@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -14,174 +15,113 @@ type Plan struct {
 
 type Planner interface {
 	MakePlan(goal string) Plan
+	UpdateMemory(ctx AgentContext)
 }
 
-type AdvancedHeuristicPlanner struct{}
-
-func NewAdvancedHeuristicPlanner() *AdvancedHeuristicPlanner {
-	return &AdvancedHeuristicPlanner{}
+type MemoryPlanner struct {
+	Memory *PlannerMemory
 }
 
-func (p *AdvancedHeuristicPlanner) MakePlan(goal string) Plan {
+func NewMemoryPlanner() *MemoryPlanner {
+	return &MemoryPlanner{
+		Memory: NewPlannerMemory(),
+	}
+}
+
+func (p *MemoryPlanner) MakePlan(goal string) Plan {
 	g := strings.ToLower(goal)
+	p.Memory.RecordGoal(g)
 
-	// Clasificación del goal
+	// Base plan (como el planner avanzado anterior)
+	plan := p.basePlan(g)
+
+	// Ajustar plan según memoria
+	plan = p.applyMemoryHeuristics(plan)
+
+	return plan
+}
+
+//
+// ============================
+// PLAN BASE (igual que el avanzado anterior)
+// ============================
+//
+
+func (p *MemoryPlanner) basePlan(goal string) Plan {
 	switch {
-	case containsAny(g, "analizar proyecto", "project analysis", "auditar proyecto"):
-		return p.planProjectAnalysis()
+	case containsAny(goal, "analizar proyecto", "project analysis"):
+		return Plan{
+			Steps: []PlanStep{
+				{"listar archivos"},
+				{"calcular métricas"},
+				{"detectar dependencias"},
+				{"buscar duplicación"},
+				{"buscar funciones largas"},
+			},
+		}
 
-	case containsAny(g, "explicar archivo", "explain file"):
-		return p.planExplainFile()
+	case containsAny(goal, "explicar archivo", "explain file"):
+		return Plan{
+			Steps: []PlanStep{
+				{"extraer funciones"},
+				{"extraer tipos"},
+				{"extraer comentarios"},
+				{"resumir archivo"},
+			},
+		}
 
-	case containsAny(g, "limpiar proyecto", "clean project"):
-		return p.planCleanup()
-
-	case containsAny(g, "refactor", "optimizar", "mejorar código"):
-		return p.planRefactor()
-
-	case containsAny(g, "seguridad", "security"):
-		return p.planSecurityAudit()
-
-	case containsAny(g, "arquitectura", "architecture"):
-		return p.planArchitecture()
-
-	case containsAny(g, "documentar", "docs"):
-		return p.planDocumentation()
+	case containsAny(goal, "limpiar proyecto", "clean project"):
+		return Plan{
+			Steps: []PlanStep{
+				{"listar archivos"},
+				{"limpiar imports"},
+				{"formatear"},
+			},
+		}
 	}
 
-	// Plan genérico
-	return Plan{
-		Steps: []PlanStep{
-			{Description: goal},
-		},
-	}
+	return Plan{Steps: []PlanStep{{goal}}}
 }
 
 //
 // ============================
-// SUBPLANES CON HEURÍSTICAS
+// HEURÍSTICAS BASADAS EN MEMORIA
 // ============================
 //
 
-func (p *AdvancedHeuristicPlanner) planProjectAnalysis() Plan {
-	// Heurística: analizar tamaño del proyecto
-	stats := AnalyzeProjectSize()
+func (p *MemoryPlanner) applyMemoryHeuristics(plan Plan) Plan {
+	// Ordenar pasos según éxito histórico
+	sort.Slice(plan.Steps, func(i, j int) bool {
+		a := strings.ToLower(plan.Steps[i].Description)
+		b := strings.ToLower(plan.Steps[j].Description)
 
-	steps := []PlanStep{
-		{"listar archivos"},
-		{"calcular métricas"},
-		{"detectar dependencias"},
+		return p.Memory.SuccessfulSteps[a] > p.Memory.SuccessfulSteps[b]
+	})
+
+	// Eliminar pasos que fallaron muchas veces
+	filtered := []PlanStep{}
+	for _, step := range plan.Steps {
+		if p.Memory.FailedSteps[strings.ToLower(step.Description)] < 3 {
+			filtered = append(filtered, step)
+		}
 	}
 
-	// Si hay muchos archivos, añadir pasos extra
-	if stats.FileCount > 200 {
-		steps = append(steps,
-			PlanStep{"buscar duplicación"},
-			PlanStep{"buscar funciones largas"},
-			PlanStep{"buscar imports no usados"},
-		)
-	}
-
-	// Si hay muchos paquetes, revisar arquitectura
-	if stats.PackageCount > 20 {
-		steps = append(steps,
-			PlanStep{"buscar ciclos de dependencias"},
-			PlanStep{"detectar paquetes demasiado grandes"},
-		)
-	}
-
-	// Si hay archivos muy grandes, buscar hotspots
-	if stats.LargeFiles > 10 {
-		steps = append(steps,
-			PlanStep{"detectar hotspots"},
-		)
-	}
-
-	return Plan{Steps: steps}
-}
-
-func (p *AdvancedHeuristicPlanner) planExplainFile() Plan {
-	return Plan{
-		Steps: []PlanStep{
-			{"extraer funciones"},
-			{"extraer tipos"},
-			{"extraer comentarios"},
-			{"resumir archivo"},
-		},
-	}
-}
-
-func (p *AdvancedHeuristicPlanner) planCleanup() Plan {
-	return Plan{
-		Steps: []PlanStep{
-			{"listar archivos"},
-			{"limpiar imports"},
-			{"formatear"},
-			{"buscar código muerto"},
-		},
-	}
-}
-
-func (p *AdvancedHeuristicPlanner) planRefactor() Plan {
-	return Plan{
-		Steps: []PlanStep{
-			{"buscar funciones largas"},
-			{"buscar duplicación"},
-			{"buscar nombres poco descriptivos"},
-			{"buscar demasiados parámetros"},
-		},
-	}
-}
-
-func (p *AdvancedHeuristicPlanner) planSecurityAudit() Plan {
-	return Plan{
-		Steps: []PlanStep{
-			{"buscar uso de exec.Command"},
-			{"buscar rutas hardcodeadas"},
-			{"buscar uso de md5 o sha1"},
-			{"buscar errores ignorados"},
-		},
-	}
-}
-
-func (p *AdvancedHeuristicPlanner) planArchitecture() Plan {
-	return Plan{
-		Steps: []PlanStep{
-			{"detectar dependencias"},
-			{"buscar ciclos de dependencias"},
-			{"buscar paquetes demasiado grandes"},
-		},
-	}
-}
-
-func (p *AdvancedHeuristicPlanner) planDocumentation() Plan {
-	return Plan{
-		Steps: []PlanStep{
-			{"extraer comentarios"},
-			{"extraer funciones"},
-			{"generar documentación"},
-		},
-	}
+	plan.Steps = filtered
+	return plan
 }
 
 //
 // ============================
-// ANÁLISIS DEL PROYECTO
+// ACTUALIZAR MEMORIA DESPUÉS DE EJECUTAR
 // ============================
 //
 
-type ProjectStats struct {
-	FileCount    int
-	PackageCount int
-	LargeFiles   int
-}
-
-func AnalyzeProjectSize() ProjectStats {
-	// Aquí puedes usar tus tools reales
-	// Por ahora devolvemos heurísticas simuladas
-	return ProjectStats{
-		FileCount:    350,
-		PackageCount: 28,
-		LargeFiles:   12,
+func (p *MemoryPlanner) UpdateMemory(ctx AgentContext) {
+	for _, step := range ctx.History {
+		if step.Output.Error == "" {
+			p.Memory.RecordSuccess(step.Action)
+		} else {
+			p.Memory.RecordFailure(step.Action)
+		}
 	}
 }
