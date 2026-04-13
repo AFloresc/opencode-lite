@@ -1,12 +1,26 @@
 package agent
 
-import "strings"
+import (
+	"strings"
+)
+
+//
+// ============================================================
+//  MetaEvaluation
+// ============================================================
+//
 
 type MetaEvaluation struct {
 	Confidence float64
 	Flags      []string
 	Advice     string
 }
+
+//
+// ============================================================
+//  Metacognition
+// ============================================================
+//
 
 type Metacognition struct {
 	llm LLMClient
@@ -16,35 +30,52 @@ func NewMetacognition(llm LLMClient) *Metacognition {
 	return &Metacognition{llm: llm}
 }
 
+//
+// ============================================================
+//  Evaluate: núcleo de la metacognición
+// ============================================================
+//
+
 func (m *Metacognition) Evaluate(goal string, rt *AgentRuntime, ctx *AgentContext) MetaEvaluation {
 	flags := []string{}
 
-	// 1. Detectar loops
+	// ============================================================
+	// 1. Señales del ExecutionMonitor
+	// ============================================================
+
 	if rt.Monitor.RepeatCount >= 2 {
 		flags = append(flags, "loop_detected")
 	}
 
-	// 2. Detectar fallos repetidos
 	if rt.Monitor.FailureCount >= 2 {
 		flags = append(flags, "repeated_failures")
 	}
 
-	// 3. Detectar estancamiento
 	if rt.Monitor.StallCount >= 2 {
 		flags = append(flags, "stalled")
 	}
 
-	// 4. Detectar goal ambiguo
-	if len(strings.Split(goal, " ")) < 3 {
+	// ============================================================
+	// 2. Goal ambiguo
+	// ============================================================
+
+	words := strings.Fields(goal)
+	if len(words) < 3 {
 		flags = append(flags, "ambiguous_goal")
 	}
 
-	// 5. Detectar falta de progreso
+	// ============================================================
+	// 3. Falta de progreso real
+	// ============================================================
+
 	if ctx.LastResult.Result == nil {
 		flags = append(flags, "no_progress")
 	}
 
-	// 6. Detectar patrones desde memoria
+	// ============================================================
+	// 4. Patrones desde memoria cognitiva
+	// ============================================================
+
 	if rt.Memory.Recall("dependency_cycles") == true {
 		flags = append(flags, "dependency_cycles_known")
 	}
@@ -53,16 +84,55 @@ func (m *Metacognition) Evaluate(goal string, rt *AgentRuntime, ctx *AgentContex
 		flags = append(flags, "long_functions_known")
 	}
 
-	// 7. LLM produce una auto‑evaluación
+	if fails, ok := rt.Memory.Recall("fail_count").(int); ok && fails >= 3 {
+		flags = append(flags, "high_failure_memory")
+	}
+
+	if success, ok := rt.Memory.Recall("success_count").(int); ok && success >= 5 {
+		flags = append(flags, "high_success_memory")
+	}
+
+	// ============================================================
+	// 5. Detectar modo incorrecto del planner o grounder
+	// ============================================================
+
+	if rt.Planner != nil {
+		if hp, ok := rt.Planner.(*HybridPlanner); ok {
+			if hp.Mode == "coarse" && rt.Monitor.FailureCount >= 2 {
+				flags = append(flags, "planner_too_coarse")
+			}
+			if hp.Mode == "fine" && rt.Monitor.RepeatCount >= 2 {
+				flags = append(flags, "planner_too_fine")
+			}
+		}
+	}
+
+	if rt.Grounder != nil {
+		if cg, ok := rt.Grounder.(*ContextualToolGrounder); ok {
+			if cg.Mode == "strict" && rt.Monitor.StallCount >= 2 {
+				flags = append(flags, "grounder_too_strict")
+			}
+			if cg.Mode == "flexible" && rt.Monitor.FailureCount >= 2 {
+				flags = append(flags, "grounder_too_flexible")
+			}
+		}
+	}
+
+	// ============================================================
+	// 6. Autoevaluación LLM
+	// ============================================================
+
 	prompt := `
 Eres un módulo de metacognición. Evalúa el rendimiento del agente.
 
 Objetivo: "` + goal + `"
-Flags: ` + strings.Join(flags, ", ") + `
+Flags detectadas: ` + strings.Join(flags, ", ") + `
 
-Devuelve:
-- un nivel de confianza entre 0 y 1
-- un consejo breve para mejorar la estrategia actual
+Devuelve SOLO un JSON con:
+{
+  "confidence": número entre 0 y 1,
+  "advice": "texto breve"
+}
 `
 
 	resp, err := m.llm.Complete(prompt)
