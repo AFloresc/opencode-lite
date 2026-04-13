@@ -5,11 +5,15 @@ import (
 )
 
 type Supervisor struct {
-	llm *LLMClient
+	llm           *LLMClient
+	Metacognition *Metacognition
 }
 
 func NewSupervisor(llm LLMClient) *Supervisor {
-	return &Supervisor{llm: &llm}
+	return &Supervisor{
+		llm:           &llm,
+		Metacognition: NewMetacognition(llm),
+	}
 }
 
 type SupervisorDecision struct {
@@ -61,7 +65,36 @@ func (s *Supervisor) Analyze(goal string, rt *AgentRuntime, ctx *AgentContext) S
 		}
 	}
 
-	// 5. Delegación normal
+	meta := s.Metacognition.Evaluate(goal, rt, ctx)
+
+	// Si la confianza es baja → pedir aclaración
+	if meta.Confidence < 0.3 {
+		return SupervisorDecision{
+			Action:  "clarify",
+			Message: "No estoy seguro de cómo proceder. " + meta.Advice,
+		}
+	}
+
+	// Si hay loops o estancamiento → replanificar
+	for _, f := range meta.Flags {
+		if f == "loop_detected" || f == "stalled" {
+			return SupervisorDecision{
+				Action: "replan",
+			}
+		}
+	}
+
+	// Si hay fallos repetidos → dividir goal
+	for _, f := range meta.Flags {
+		if f == "repeated_failures" {
+			return SupervisorDecision{
+				Action:   "split",
+				SubGoals: splitGoal(goal),
+			}
+		}
+	}
+
+	// 6. Delegación normal
 	return SupervisorDecision{
 		Action:    "delegate",
 		AgentName: classifyGoal(goal, *s.llm),
