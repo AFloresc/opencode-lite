@@ -21,7 +21,7 @@ func NewAgentRuntime(projectID string, policy AgentPolicy, llm LLMClient) *Agent
 		Policy:   policy,
 		Planner:  NewHybridPlanner(projectID, llm),
 		Mapper:   NewSemanticStepMapper(),
-		Grounder: NewContextualToolGrounder(stats, memPlanner),
+		Grounder: NewContextualToolGrounder(stats, mem),
 		Expander: NewDefaultStepExpander(),
 		Monitor:  NewExecutionMonitor(),
 		Memory:   mem,
