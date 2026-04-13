@@ -51,6 +51,16 @@ func (s *Supervisor) Analyze(goal string, rt *AgentRuntime, ctx *AgentContext) S
 		}
 	}
 
+	// 5. Usar memoria para las decisiones globales
+	if rt.Memory.Recall("fail_count") != nil {
+		if rt.Memory.Recall("fail_count").(int) >= 3 {
+			return SupervisorDecision{
+				Action:  "clarify",
+				Message: "He detectado fallos repetidos. ¿Quieres redefinir el objetivo?",
+			}
+		}
+	}
+
 	// 5. Delegación normal
 	return SupervisorDecision{
 		Action:    "delegate",

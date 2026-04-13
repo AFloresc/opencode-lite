@@ -7,20 +7,24 @@ type AgentRuntime struct {
 	Grounder ToolGrounder
 	Expander StepExpander
 	Monitor  *ExecutionMonitor
+	Memory   *CognitiveMemory
 }
 
 func NewAgentRuntime(projectID string, policy AgentPolicy, llm LLMClient) *AgentRuntime {
 	stats := AnalyzeProjectSize()
-	mem := NewPlannerMemory(projectID)
+	memPlanner := NewPlannerMemory(projectID)
+	_ = memPlanner.Load()
+	mem := NewCognitiveMemory(projectID)
 	_ = mem.Load()
 
 	return &AgentRuntime{
 		Policy:   policy,
 		Planner:  NewHybridPlanner(projectID, llm),
 		Mapper:   NewSemanticStepMapper(),
-		Grounder: NewContextualToolGrounder(stats, mem),
+		Grounder: NewContextualToolGrounder(stats, memPlanner),
 		Expander: NewDefaultStepExpander(),
 		Monitor:  NewExecutionMonitor(),
+		Memory:   mem,
 	}
 }
 
@@ -30,6 +34,7 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 		Memory: map[string]interface{}{},
 	}
 
+	// 1. Generar plan inicial
 	plan := rt.Planner.MakePlan(goal)
 	queue := append([]PlanStep{}, plan.Steps...)
 
@@ -37,23 +42,32 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 		step := queue[0]
 		queue = queue[1:]
 
+		// Normalizamos el step
 		normalized := rt.Mapper.Normalize(step.Description)
 		ctx.Goal = normalized
 
-		// 1. Grounding directo
+		// ============================================================
+		// 2. Grounding contextual (primer intento)
+		// ============================================================
 		if call, ok := rt.Grounder.Ground(normalized, &ctx); ok {
+
 			result := rt.executeTool(call.ToolName, call.Args, &ctx)
 
-			// Monitor
+			// Guardar en memoria cognitiva
+			rt.Memory.Remember("last_tool", call.ToolName)
+			rt.Memory.Remember("last_result", result.Result)
+			rt.Memory.Save()
+
+			// Monitor de ejecución
 			rt.Monitor.Update(step, result)
 
-			// 2. Subplanes dinámicos
+			// Subplanes dinámicos
 			if rt.Expander != nil {
 				newSteps := rt.Expander.Expand(step, result, &ctx)
 				queue = append(newSteps, queue...)
 			}
 
-			// 3. Replanificación automática
+			// Replanificación automática
 			if rt.Monitor.ShouldReplan() {
 				newPlan := rt.Planner.MakePlan(ctx.Goal)
 				queue = append(newPlan.Steps, queue...)
@@ -63,7 +77,9 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 			continue
 		}
 
-		// 4. Fallback: Policy
+		// ============================================================
+		// 3. Fallback: Policy Decide()
+		// ============================================================
 		for i := 0; i < 20; i++ {
 			toolName, args, done := rt.Policy.Decide(&ctx)
 			if done {
@@ -72,14 +88,21 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 
 			result := rt.executeTool(toolName, args, &ctx)
 
+			// Guardar en memoria cognitiva
+			rt.Memory.Remember("last_tool", toolName)
+			rt.Memory.Remember("last_result", result.Result)
+			rt.Memory.Save()
+
 			// Monitor
 			rt.Monitor.Update(step, result)
 
+			// Subplanes dinámicos
 			if rt.Expander != nil {
 				newSteps := rt.Expander.Expand(step, result, &ctx)
 				queue = append(newSteps, queue...)
 			}
 
+			// Replanificación automática
 			if rt.Monitor.ShouldReplan() {
 				newPlan := rt.Planner.MakePlan(ctx.Goal)
 				queue = append(newPlan.Steps, queue...)
@@ -88,6 +111,8 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 		}
 	}
 
+	// Guardar memoria del planner
 	rt.Planner.UpdateMemory(ctx)
+
 	return ctx
 }
