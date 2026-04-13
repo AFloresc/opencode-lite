@@ -6,20 +6,30 @@ import (
 	"os"
 	"strings"
 
+	"opencode-lite/internal/agent"
 	"opencode-lite/internal/providers"
-	"opencode-lite/internal/runtime"
 )
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 
-	// Configura tu Ollama local
+	// Configura tu proveedor Ollama
 	provider := providers.NewOllamaProvider(
-		"http://localhost:11434", // URL de Ollama
-		"qwen2.5-coder",          // Modelo que estés usando
+		"http://localhost:11434",
+		"qwen2.5-coder",
 	)
 
-	fmt.Println("OpenCode Lite + Ollama")
+	// Adaptamos el provider a tu LLMClient
+	llm := agent.NewPromptLLMClient(func(prompt string) (string, error) {
+		return provider.Chat([]providers.OllamaChatMessage{
+			{Role: "user", Content: prompt},
+		})
+	})
+
+	// Creamos el MasterAgent (multi‑agente)
+	master := agent.NewMasterAgent("workspace", llm)
+
+	fmt.Println("OpenCode Lite — Multi‑Agente")
 	fmt.Println("Escribe 'exit' para salir.")
 	fmt.Println("--------------------------------------------------")
 
@@ -29,34 +39,24 @@ func main() {
 		input = strings.TrimSpace(input)
 
 		if input == "exit" {
-			fmt.Println("Saliendo...")
+			fmt.Println("Saliendo…")
 			return
 		}
 
-		// Construimos la request
-		req := runtime.ChatRequest{
-			Input: input,
+		// Ejecutamos el goal con el MasterAgent
+		ctx := master.Run(input)
+
+		// Mostramos el historial de pasos ejecutados
+		fmt.Println("--------------------------------------------------")
+		fmt.Println("Historial de ejecución:")
+		for _, step := range ctx.History {
+			fmt.Printf("- [%s] %v\n", step.Action, step.Input)
 		}
 
-		// Llamamos al runtime con el system prompt
-		resp, toolResults, err := runtime.HandleChatWithOllama(provider, req, runtime.SystemPrompt)
-		if err != nil {
-			fmt.Println("Error:", err)
-			continue
-		}
-
-		// Mostrar resultados de herramientas (si los hubo)
-		for _, tr := range toolResults {
-			if tr.Error != "" {
-				fmt.Printf("[Tool %s ERROR]: %s\n", tr.ToolName, tr.Error)
-			} else {
-				fmt.Printf("[Tool %s OK]\n", tr.ToolName)
-			}
-		}
-
-		// Mostrar respuesta final del modelo
-		if resp.Message != "" {
-			fmt.Println(resp.Message)
-		}
+		// Mostramos el último resultado
+		fmt.Println("--------------------------------------------------")
+		fmt.Println("Resultado final:")
+		fmt.Printf("%+v\n", ctx.LastResult)
+		fmt.Println("--------------------------------------------------")
 	}
 }
