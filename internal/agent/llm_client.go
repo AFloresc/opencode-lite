@@ -8,6 +8,7 @@ import (
 
 type LLMClient interface {
 	ProposePlan(goal string) ([]string, error)
+	Complete(prompt string) (string, error)
 }
 
 type PromptLLMClient struct {
@@ -36,4 +37,12 @@ func (c *PromptLLMClient) ProposePlan(goal string) ([]string, error) {
 	}
 
 	return steps, nil
+}
+
+func (c *PromptLLMClient) Complete(prompt string) (string, error) {
+	if c.Call == nil {
+		return "", errors.New("LLM call function not set")
+	}
+
+	return c.Call(prompt)
 }
