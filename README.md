@@ -1,266 +1,389 @@
-# 🧠 Agent Runtime — Filesystem & Patch Engine
+# 🧠 Cognitive Agent Runtime — Full Architecture
 
-Este proyecto implementa un **runtime de agente** en Go con un conjunto completo de herramientas para manipular un workspace local.  
-El objetivo es proporcionar a un agente de IA un entorno seguro, modular y extensible para:
+This project implements a **cognitive runtime for autonomous agents** in Go, featuring:
 
-- leer y escribir archivos  
-- aplicar parches inteligentes  
-- realizar refactors estructurados  
-- explorar el filesystem  
-- comprimir y descomprimir  
-- formatear código  
-- buscar patrones complejos  
-- gestionar proyectos completos  
+- filesystem manipulation tools  
+- a hybrid planner (rules + LLM)  
+- a contextual tool grounder  
+- metacognition  
+- continuous self‑optimization (AOC)  
+- persistent cognitive memory  
+- an execution monitor  
+- specialized agents (analysis, refactor, docs)  
 
-El resultado es un **mini‑sistema operativo para agentes**, con capacidades equivalentes a un editor de código moderno.
+The goal is to provide a **safe, extensible, autonomous environment** for agents capable of analyzing, modifying, and documenting entire projects.
 
 ---
 
-## 📦 Estructura general
+## 🧩 Overall Architecture
 
-El runtime expone un **registry de herramientas**, cada una implementada como una función Go que recibe argumentos dinámicos (`map[string]interface{}`) y devuelve un `ToolResult`.
-
-Todas las operaciones se realizan dentro del directorio:
+Main cognitive flow:
 
 ```text
-    workspace/
+Goal → Planner → Grounder → Runtime → Tools
+          ↑         ↓
+     Metacognition ← ExecutionMonitor
+          ↓
+     StrategyEngine
+          ↓
+           AOC
 ```
 
-
-Esto garantiza aislamiento y seguridad.
-
----
-
-# 🛠️ Herramientas disponibles
-
-A continuación se listan todas las herramientas implementadas, agrupadas por categoría.
+Each component contributes a different cognitive layer and relies on project‑scoped persistent memory.
 
 ---
 
-## 📁 Filesystem básico
+## 🧠 Cognitive Memory & Planner Memory
 
-### **read_file**
-Lee el contenido de un archivo.
+### 🧠 CognitiveMemory
 
-### **write_file**
-Sobrescribe completamente un archivo.
+Project‑scoped cognitive memory stored at:
 
-### **create_file**
-Crea un archivo nuevo (con contenido opcional).
+```
+.opencode/<projectID>/cognitive_memory.json
+```
 
-### **delete_file**
-Elimina un archivo.
+Stores:
 
-### **rename_file**
-Renombra un archivo o carpeta.
+- last_tool  
+- last_result  
+- fail_count  
+- success_count  
+- detected patterns (dependency_cycles, long_functions_detected)  
+- AOC snapshots  
 
-### **copy_file**
-Copia un archivo.
+API:
 
-### **move_file**
-Mueve un archivo.
+- Remember(key, value)  
+- Recall(key)  
+- Increment(key)  
+- Reset(key)  
 
-### **file_exists**
-Comprueba si un archivo o directorio existe.
+Helpers:
 
-### **read_dir**
-Lista el contenido de un directorio con metadatos.
-
-### **stat_file**
-Devuelve metadatos de un archivo o directorio.
-
-### **touch_file**
-Crea un archivo vacío o actualiza su timestamp.
+- RememberLastTool(name)  
+- RememberLastResult(result)  
+- RegisterFailure()  
+- RegisterSuccess()  
 
 ---
 
-## ✏️ Edición de archivos
+### 🧠 PlannerMemory
 
-### **append_file**
-Añade contenido al final de un archivo.
+Planner‑specific memory stored at:
 
-### **truncate_file**
-Vacía completamente un archivo sin eliminarlo.
+```
+.opencode/<projectID>/planner_memory.json
+```
 
----
+Stores:
 
-## 🔍 Búsqueda y análisis
+- SuccessfulSteps  
+- FailedSteps  
+- GoalPatterns  
 
-### **search_in_file**
-Búsqueda exacta dentro de un archivo.
+API:
 
-### **grep**
-Búsqueda en múltiples archivos.
+- RecordSuccess  
+- RecordFailure  
+- RecordGoal  
+- IsFrequentlyFailing  
+- Score  
 
-### **search_replace**
-Buscar y reemplazar texto plano.
+Used to:
 
-### **search_regex**
-Búsqueda avanzada con expresiones regulares.
-
----
-
-## 🧩 Parches y refactors
-
-### **apply_patch**
-Parche estricto estilo diff.
-
-### **apply_patch_fuzzy**
-Parche tolerante a cambios en el contexto.
-
-### **apply_patch_auto**
-Parche inteligente sin contexto exacto:
-- `+` añadir  
-- `-` eliminar  
-- `~a => b` reemplazar  
-
-### **apply_patch_structured**
-Refactor semántico:
-- insertar imports  
-- insertar antes/después de funciones  
-- reemplazar funciones  
-- eliminar funciones  
-- reemplazo por regex estructural  
+- filter steps that fail too often  
+- prioritize steps with better cognitive scores  
 
 ---
 
-## 🧰 Utilidades avanzadas
+## 🔍 ExecutionMonitor
 
-### **diff_files**
-Comparación estilo unified diff entre dos archivos.
+Tracks execution step‑by‑step:
 
-### **zip_dir**
-Comprime un directorio en un `.zip`.
+- RepeatCount → repeated step  
+- FailureCount → consecutive errors  
+- StallCount → identical result hash  
+- LastStepTime → temporal stalling  
 
-### **unzip**
-Descomprime un archivo `.zip`.
+Flags:
 
-### **format_code**
-Autoformateo de código:
-- Go (gofmt real)
-- JSON
-- YAML (limpieza básica)
-- Genérico (normalización)
+- loop_detected  
+- repeated_failures  
+- stalled  
 
----
-
-# 🖥️ Comandos sandbox (`run_command`)
-
-El runtime incluye un **intérprete seguro** que ejecuta comandos internos sin tocar el sistema operativo real.
+These feed into Metacognition and StrategyEngine.
 
 ---
 
-## 📏 Comandos básicos
+## 🧠 Metacognition
 
-| Comando | Descripción |
-|--------|-------------|
-| `count_lines <archivo>` | Cuenta líneas |
-| `file_size <archivo>` | Tamaño en bytes |
-| `validate_json <archivo>` | Valida JSON |
-| `echo <texto>` | Devuelve el texto |
-| `word_count <archivo>` | Cuenta palabras |
-| `char_count <archivo>` | Cuenta caracteres |
-| `sha256 <archivo>` | Hash SHA‑256 |
-| `list_dir <directorio>` | Lista archivos |
-| `head <archivo> <n>` | Primeras n líneas |
-| `tail <archivo> <n>` | Últimas n líneas |
-| `search <archivo> <texto>` | Búsqueda exacta |
-| `now` | Fecha/hora actual |
-
----
-
-## 🔧 Comandos de análisis de código
-
-| Comando | Descripción |
-|--------|-------------|
-| `count_funcs <archivo.go>` | Cuenta funciones |
-| `count_imports <archivo.go>` | Cuenta imports |
-| `find_structs <archivo.go>` | Lista structs |
-| `find_interfaces <archivo.go>` | Lista interfaces |
-
----
-
-## 📦 Comandos de análisis de proyecto
-
-| Comando | Descripción |
-|--------|-------------|
-| `project_stats` | Número de archivos y directorios |
-| `largest_files` | Top 10 archivos más grandes |
-| `file_tree` | Árbol completo del workspace |
-
----
-
-## 🧠 Comandos inteligentes
-
-| Comando | Descripción |
-|--------|-------------|
-| `detect_language <archivo>` | Detecta lenguaje por extensión |
-| `summarize_file <archivo>` | Primeras 5 líneas |
-| `extract_comments <archivo.go>` | Extrae comentarios `//` |
-
----
-
-# 🧩 Registro de herramientas
-
-Todas las herramientas se registran en:
+Produces:
 
 ```go
-var toolRegistry = map[string]func(map[string]interface{}) ToolResult{
-    // filesystem
-    "read_file": readFileTool,
-    "write_file": writeFileTool,
-    "create_file": createFileTool,
-    "delete_file": deleteFileTool,
-    "rename_file": renameFileTool,
-    "copy_file": copyFileTool,
-    "move_file": moveFileTool,
-    "file_exists": fileExistsTool,
-    "read_dir": readDirTool,
-    "stat_file": statFileTool,
-    "touch_file": touchFileTool,
-
-    // edición
-    "append_file": appendFileTool,
-    "truncate_file": truncateFileTool,
-
-    // búsqueda
-    "search_in_file": searchInFileTool,
-    "grep": grepTool,
-    "search_replace": searchReplaceTool,
-    "search_regex": searchRegexTool,
-
-    // parches
-    "apply_patch": applyPatchTool,
-    "apply_patch_fuzzy": applyPatchFuzzyTool,
-    "apply_patch_auto": applyPatchAutoTool,
-    "apply_patch_structured": applyPatchStructuredTool,
-
-    // utilidades
-    "diff_files": diffFilesTool,
-    "zip_dir": zipDirTool,
-    "unzip": unzipTool,
-    "format_code": formatCodeTool,
+type MetaEvaluation struct {
+    Confidence float64
+    Flags      []string
+    Advice     string
 }
 ```
-# 🚀 Capacidades del agente
-Con este runtime, un agente puede:
 
-- navegar el filesystem como un IDE
+Detects:
 
-- modificar código de forma segura
+- loops  
+- repeated failures  
+- stalling  
+- ambiguous goals  
+- lack of progress  
+- cognitive memory patterns  
+- incorrect planner/grounder modes  
 
-- aplicar refactors semánticos
+---
 
-- formatear código automáticamente
+## 🎛️ StrategyEngine
 
-- analizar proyectos completos
+Dynamically adjusts:
 
-- generar y restaurar backups
+- PlannerMode: coarse, fine, aggressive, conservative  
+- GroundingMode: strict, flexible  
+- ToolBias: analysis, refactor, docs, none  
+- agent switching  
 
-- realizar búsquedas avanzadas
+Based on:
 
-- comparar versiones de archivos
+- metacognition  
+- cognitive memory  
+- execution monitor  
+- goal type  
+- project size  
 
-Es un entorno de desarrollo completo, diseñado para agentes autónomos.
+---
 
-----
+## 🔁 AOC — Autonomous Optimization Cycle
+
+Learns persistent preferences:
+
+```go
+type AOCUpdate struct {
+    PreferredPlannerMode   string
+    PreferredGroundingMode string
+    PreferredAgentBias     string
+    UpdatedAt              time.Time
+}
+```
+
+Stores:
+
+- aoc_last_update  
+- aoc_failures_total  
+- aoc_loops_total  
+- aoc_stalls_total  
+- aoc_last_confidence  
+
+---
+
+## 🧠 HybridPlanner
+
+Hybrid planner combining:
+
+- deterministic rules  
+- LLM reasoning  
+- planner memory  
+
+Modes:
+
+- coarse  
+- fine  
+- aggressive  
+- conservative  
+
+Filters failing steps and sorts by cognitive score.
+
+---
+
+## 🧭 ContextualToolGrounder
+
+Maps planner steps to actual tools.
+
+Modes:
+
+- strict → literal grounding  
+- flexible → semantic grounding  
+
+Uses:
+
+- project statistics  
+- cognitive memory  
+- tool selection heuristics  
+
+---
+
+## 🤖 Specialized Agents
+
+Interface:
+
+```go
+type SpecializedAgent interface {
+    Name() string
+    CanHandle(goal string) bool
+    Run(goal string, ctx *AgentContext) AgentContext
+}
+```
+
+### AnalysisAgent
+- dependencies  
+- metrics  
+- structure  
+- diagnostics  
+
+### RefactorAgent
+- cleanup  
+- optimization  
+- simplification  
+
+### DocsAgent
+- documentation  
+- explanations  
+- summaries  
+
+All delegate to:
+
+```go
+return a.runtime.Run(goal)
+```
+
+---
+
+## 🧠 AgentRuntime
+
+Cognitive execution core:
+
+- runs the plan  
+- invokes tools  
+- updates memory  
+- queries metacognition  
+- applies StrategyEngine  
+- triggers AOC  
+- monitors loops and stalling  
+
+Signature:
+
+```go
+func (rt *AgentRuntime) Run(goal string) AgentContext
+```
+
+---
+
+# 🛠️ Toolset: Filesystem & Patch Engine
+
+All tools operate inside:
+
+```
+workspace/
+```
+
+---
+
+## 📁 Basic Filesystem Tools
+
+- read_file  
+- write_file  
+- create_file  
+- delete_file  
+- rename_file  
+- copy_file  
+- move_file  
+- file_exists  
+- read_dir  
+- stat_file  
+- touch_file  
+
+---
+
+## ✏️ Editing Tools
+
+- append_file  
+- truncate_file  
+
+---
+
+## 🔍 Search Tools
+
+- search_in_file  
+- grep  
+- search_replace  
+- search_regex  
+
+---
+
+## 🧩 Patch & Refactor Tools
+
+- apply_patch  
+- apply_patch_fuzzy  
+- apply_patch_auto  
+- apply_patch_structured  
+
+---
+
+## 🧰 Utility Tools
+
+- diff_files  
+- zip_dir  
+- unzip  
+- format_code  
+
+---
+
+# 🖥️ Sandbox Commands (run_command)
+
+### Basic Commands
+
+- count_lines  
+- file_size  
+- validate_json  
+- echo  
+- word_count  
+- char_count  
+- sha256  
+- list_dir  
+- head / tail  
+- search  
+- now  
+
+### Code Analysis
+
+- count_funcs  
+- count_imports  
+- find_structs  
+- find_interfaces  
+
+### Project Analysis
+
+- project_stats  
+- largest_files  
+- file_tree  
+
+### Intelligent Commands
+
+- detect_language  
+- summarize_file  
+- extract_comments  
+
+---
+
+# 🚀 Agent Capabilities
+
+With this architecture, an agent can:
+
+- navigate the filesystem like an IDE  
+- safely modify code  
+- apply semantic refactors  
+- auto‑format code  
+- analyze entire projects  
+- detect structural patterns  
+- self‑adjust strategy  
+- learn from previous runs  
+- avoid loops and stalling  
+- delegate across specialized agents  
+
+It is a **complete cognitive system**, designed for high‑level autonomous agents.
