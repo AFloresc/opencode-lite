@@ -243,5 +243,81 @@ func (p RuleBasedPolicy) Decide(ctx *AgentContext) (string, map[string]interface
 		}, false
 	}
 
+	// Detect functions without comments
+	if containsAny(goal, "funciones sin comentarios", "undocumented functions") {
+		return "search_regex_multi", map[string]interface{}{
+			"path":    "workspace",
+			"pattern": "func [A-Za-z0-9_]+\\([^)]*\\) \\{",
+		}, false
+	}
+
+	// Unudes vars
+	if containsAny(goal, "variables no usadas", "unused vars") {
+		return "lint_code", map[string]interface{}{
+			"path": extractFile(goal),
+		}, false
+	}
+
+	// Not used imports
+	if containsAny(goal, "imports no usados", "unused imports") {
+		return "lint_code", map[string]interface{}{
+			"path": extractFile(goal),
+		}, false
+	}
+
+	// Cyclic dependencies
+	if containsAny(goal, "ciclos de dependencias", "dependency cycles") {
+		return "analysis_dependencies", map[string]interface{}{
+			"root": "workspace",
+		}, false
+	}
+
+	// Too larga files
+	if containsAny(goal, "archivos grandes", "large files") {
+		return "largest_files", map[string]interface{}{
+			"root": "workspace",
+		}, false
+	}
+
+	//  Modules without tests
+	if containsAny(goal, "sin tests", "missing tests") {
+		return "search_regex_multi", map[string]interface{}{
+			"path":    "workspace",
+			"pattern": "_test\\.go",
+		}, false
+	}
+
+	//  Functions with too many params
+	if containsAny(goal, "demasiados parámetros", "too many parameters") {
+		return "search_regex_multi", map[string]interface{}{
+			"path":    "workspace",
+			"pattern": "func [A-Za-z0-9_]+\\([^)]{40,}\\)",
+		}, false
+	}
+
+	// Les descriptive names
+	if containsAny(goal, "nombres malos", "bad names", "nombres poco descriptivos") {
+		return "search_regex_multi", map[string]interface{}{
+			"path":    "workspace",
+			"pattern": "\\b[a-zA-Z]{1,2}\\b",
+		}, false
+	}
+
+	// Duplicated code detection
+	if containsAny(goal, "duplicación", "duplicate code") {
+		return "search_regex_multi", map[string]interface{}{
+			"path":    "workspace",
+			"pattern": "func .*\\{[\\s\\S]{100,}\\}",
+		}, false
+	}
+
+	// Too large functions
+	if containsAny(goal, "funciones largas", "long functions") {
+		return "search_regex_multi", map[string]interface{}{
+			"path":    "workspace",
+			"pattern": "func .*\\{[\\s\\S]{200,}\\}",
+		}, false
+	}
+
 	return "", nil, true
 }
