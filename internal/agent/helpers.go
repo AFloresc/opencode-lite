@@ -1,6 +1,9 @@
 package agent
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	"opencode-lite/internal/tools"
 	"strings"
 )
@@ -89,4 +92,9 @@ func (rt *AgentRuntime) executeTool(name string, args map[string]interface{}, ct
 
 	ctx.LastResult = result
 	return result
+}
+
+func hashResult(r tools.ToolResult) string {
+	b, _ := json.Marshal(r.Result)
+	return fmt.Sprintf("%x", sha256.Sum256(b))
 }

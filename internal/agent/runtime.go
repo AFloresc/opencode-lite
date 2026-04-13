@@ -6,6 +6,7 @@ type AgentRuntime struct {
 	Mapper   StepMapper
 	Grounder ToolGrounder
 	Expander StepExpander
+	Monitor  *ExecutionMonitor
 }
 
 func NewAgentRuntime(projectID string, policy AgentPolicy, llm LLMClient) *AgentRuntime {
@@ -19,6 +20,7 @@ func NewAgentRuntime(projectID string, policy AgentPolicy, llm LLMClient) *Agent
 		Mapper:   NewSemanticStepMapper(),
 		Grounder: NewContextualToolGrounder(stats, mem),
 		Expander: NewDefaultStepExpander(),
+		Monitor:  NewExecutionMonitor(),
 	}
 }
 
@@ -42,16 +44,26 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 		if call, ok := rt.Grounder.Ground(normalized, &ctx); ok {
 			result := rt.executeTool(call.ToolName, call.Args, &ctx)
 
+			// Monitor
+			rt.Monitor.Update(step, result)
+
 			// 2. Subplanes dinámicos
 			if rt.Expander != nil {
 				newSteps := rt.Expander.Expand(step, result, &ctx)
 				queue = append(newSteps, queue...)
 			}
 
+			// 3. Replanificación automática
+			if rt.Monitor.ShouldReplan() {
+				newPlan := rt.Planner.MakePlan(ctx.Goal)
+				queue = append(newPlan.Steps, queue...)
+				rt.Monitor = NewExecutionMonitor()
+			}
+
 			continue
 		}
 
-		// 3. Fallback: Policy
+		// 4. Fallback: Policy
 		for i := 0; i < 20; i++ {
 			toolName, args, done := rt.Policy.Decide(&ctx)
 			if done {
@@ -60,9 +72,18 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 
 			result := rt.executeTool(toolName, args, &ctx)
 
+			// Monitor
+			rt.Monitor.Update(step, result)
+
 			if rt.Expander != nil {
 				newSteps := rt.Expander.Expand(step, result, &ctx)
 				queue = append(newSteps, queue...)
+			}
+
+			if rt.Monitor.ShouldReplan() {
+				newPlan := rt.Planner.MakePlan(ctx.Goal)
+				queue = append(newPlan.Steps, queue...)
+				rt.Monitor = NewExecutionMonitor()
 			}
 		}
 	}
