@@ -9,10 +9,10 @@ type AgentRuntime struct {
 	Planner Planner
 }
 
-func NewAgentRuntime(projectID string, policy AgentPolicy) *AgentRuntime {
+func NewAgentRuntime(projectID string, policy AgentPolicy, llm LLMClient) *AgentRuntime {
 	return &AgentRuntime{
 		Policy:  policy,
-		Planner: NewMemoryPlanner(projectID),
+		Planner: NewHybridPlanner(projectID, llm),
 	}
 }
 
