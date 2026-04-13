@@ -9,15 +9,21 @@ type MasterAgent struct {
 }
 
 func NewMasterAgent(projectID string, llm LLMClient) *MasterAgent {
+	// Memoria cognitiva global del proyecto
+	cogMem := NewCognitiveMemory(projectID)
+	_ = cogMem.Load()
+
+	// Crear agentes especializados, todos usando la misma memoria
+	agents := []SpecializedAgent{
+		NewAnalysisAgent(projectID, llm, cogMem),
+		NewRefactorAgent(projectID, llm, cogMem),
+		NewDocsAgent(projectID, llm, cogMem),
+	}
+
 	return &MasterAgent{
-		Agents: []SpecializedAgent{
-			NewAnalysisAgent(projectID, llm),
-			NewRefactorAgent(projectID, llm),
-			NewDocsAgent(projectID, llm),
-			// aquí puedes añadir security, architecture, etc.
-		},
+		Agents:     agents,
 		Classifier: NewGoalClassifier(llm),
-		Supervisor: NewSupervisor(llm),
+		Supervisor: NewSupervisor(llm, cogMem),
 	}
 }
 

@@ -2,9 +2,12 @@ package agent
 
 import "strings"
 
-func NewAnalysisAgent(projectID string, llm LLMClient) SpecializedAgent {
-	policy := NewAnalysisPolicy() // tu policy de análisis
+func NewAnalysisAgent(projectID string, llm LLMClient, mem *CognitiveMemory) SpecializedAgent {
+	policy := NewAnalysisPolicy()
+
+	// Runtime cognitivo
 	rt := NewAgentRuntime(projectID, policy, llm)
+	rt.Memory = mem // <-- integración de memoria cognitiva
 
 	return &BaseSpecializedAgent{
 		name:    "analysis",
@@ -19,9 +22,12 @@ func NewAnalysisAgent(projectID string, llm LLMClient) SpecializedAgent {
 	}
 }
 
-func NewRefactorAgent(projectID string, llm LLMClient) SpecializedAgent {
-	policy := NewRefactorPolicy() // otra policy
+func NewRefactorAgent(projectID string, llm LLMClient, mem *CognitiveMemory) SpecializedAgent {
+	policy := NewRefactorPolicy() // policy específica de refactor
+
+	// Runtime cognitivo
 	rt := NewAgentRuntime(projectID, policy, llm)
+	rt.Memory = mem // <-- integración de memoria cognitiva avanzada
 
 	return &BaseSpecializedAgent{
 		name:    "refactor",
@@ -35,9 +41,12 @@ func NewRefactorAgent(projectID string, llm LLMClient) SpecializedAgent {
 	}
 }
 
-func NewDocsAgent(projectID string, llm LLMClient) SpecializedAgent {
+func NewDocsAgent(projectID string, llm LLMClient, mem *CognitiveMemory) SpecializedAgent {
 	policy := NewDocsPolicy()
+
+	// Runtime cognitivo
 	rt := NewAgentRuntime(projectID, policy, llm)
+	rt.Memory = mem // <-- integración de memoria cognitiva avanzada
 
 	return &BaseSpecializedAgent{
 		name:    "docs",

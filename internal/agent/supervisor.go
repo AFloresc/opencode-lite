@@ -8,13 +8,15 @@ type Supervisor struct {
 	llm           *LLMClient
 	Metacognition *Metacognition
 	Strategy      *StrategyEngine
+	AOC           *AOC
 }
 
-func NewSupervisor(llm LLMClient) *Supervisor {
+func NewSupervisor(llm LLMClient, mem *CognitiveMemory) *Supervisor {
 	return &Supervisor{
 		llm:           &llm,
 		Metacognition: NewMetacognition(llm),
 		Strategy:      NewStrategyEngine(llm),
+		AOC:           NewAOC(mem),
 	}
 }
 
@@ -69,6 +71,9 @@ func (s *Supervisor) Analyze(goal string, rt *AgentRuntime, ctx *AgentContext) S
 
 	meta := s.Metacognition.Evaluate(goal, rt, ctx)
 	adj := s.Strategy.Adjust(meta, rt, ctx, goal)
+
+	// Aplicar AOC
+	s.AOC.Update(meta, rt, ctx)
 
 	// Si la estrategia dice que hay que cambiar de agente
 	if adj.ShouldSwitch {
