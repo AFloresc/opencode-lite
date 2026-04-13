@@ -1,6 +1,8 @@
 package agent
 
-import "opencode-lite/internal/tools"
+import (
+	"opencode-lite/internal/tools"
+)
 
 type AgentRuntime struct {
 	Policy AgentPolicy
