@@ -12,11 +12,15 @@ type AgentRuntime struct {
 }
 
 func NewAgentRuntime(projectID string, policy AgentPolicy, llm LLMClient) *AgentRuntime {
+	stats := AnalyzeProjectSize()
+	mem := NewPlannerMemory(projectID)
+	_ = mem.Load()
+
 	return &AgentRuntime{
 		Policy:   policy,
 		Planner:  NewHybridPlanner(projectID, llm),
 		Mapper:   NewSemanticStepMapper(),
-		Grounder: NewDefaultToolGrounder(),
+		Grounder: NewContextualToolGrounder(stats, mem),
 	}
 }
 
