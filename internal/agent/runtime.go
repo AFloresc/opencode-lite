@@ -1,14 +1,11 @@
 package agent
 
-import (
-	"opencode-lite/internal/tools"
-)
-
 type AgentRuntime struct {
 	Policy   AgentPolicy
 	Planner  Planner
 	Mapper   StepMapper
 	Grounder ToolGrounder
+	Expander StepExpander
 }
 
 func NewAgentRuntime(projectID string, policy AgentPolicy, llm LLMClient) *AgentRuntime {
@@ -21,6 +18,7 @@ func NewAgentRuntime(projectID string, policy AgentPolicy, llm LLMClient) *Agent
 		Planner:  NewHybridPlanner(projectID, llm),
 		Mapper:   NewSemanticStepMapper(),
 		Grounder: NewContextualToolGrounder(stats, mem),
+		Expander: NewDefaultStepExpander(),
 	}
 }
 
@@ -31,67 +29,41 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 	}
 
 	plan := rt.Planner.MakePlan(goal)
+	queue := append([]PlanStep{}, plan.Steps...)
 
-	for _, step := range plan.Steps {
-		normalized := step.Description
-		if rt.Mapper != nil {
-			normalized = rt.Mapper.Normalize(step.Description)
-		}
+	for len(queue) > 0 {
+		step := queue[0]
+		queue = queue[1:]
 
+		normalized := rt.Mapper.Normalize(step.Description)
 		ctx.Goal = normalized
 
-		// 1) Intentar grounding directo
-		if rt.Grounder != nil {
-			if call, ok := rt.Grounder.Ground(normalized, &ctx); ok {
-				toolFn, ok := tools.ToolRegistry[call.ToolName]
-				if !ok {
-					ctx.LastResult = tools.ToolResult{
-						ToolName: call.ToolName,
-						Error:    "tool no encontrada",
-					}
-					continue
-				}
+		// 1. Grounding directo
+		if call, ok := rt.Grounder.Ground(normalized, &ctx); ok {
+			result := rt.executeTool(call.ToolName, call.Args, &ctx)
 
-				result := toolFn(call.Args)
-
-				ctx.History = append(ctx.History, AgentStep{
-					Thought: "Ejecutando " + call.ToolName + " (grounded)",
-					Action:  call.ToolName,
-					Input:   call.Args,
-					Output:  result,
-				})
-
-				ctx.LastResult = result
-				continue
+			// 2. Subplanes dinámicos
+			if rt.Expander != nil {
+				newSteps := rt.Expander.Expand(step, result, &ctx)
+				queue = append(newSteps, queue...)
 			}
+
+			continue
 		}
 
-		// 2) Fallback: usar Policy
+		// 3. Fallback: Policy
 		for i := 0; i < 20; i++ {
 			toolName, args, done := rt.Policy.Decide(&ctx)
 			if done {
 				break
 			}
 
-			toolFn, ok := tools.ToolRegistry[toolName]
-			if !ok {
-				ctx.LastResult = tools.ToolResult{
-					ToolName: toolName,
-					Error:    "tool no encontrada",
-				}
-				break
+			result := rt.executeTool(toolName, args, &ctx)
+
+			if rt.Expander != nil {
+				newSteps := rt.Expander.Expand(step, result, &ctx)
+				queue = append(newSteps, queue...)
 			}
-
-			result := toolFn(args)
-
-			ctx.History = append(ctx.History, AgentStep{
-				Thought: "Ejecutando " + toolName,
-				Action:  toolName,
-				Input:   args,
-				Output:  result,
-			})
-
-			ctx.LastResult = result
 		}
 	}
 

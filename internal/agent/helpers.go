@@ -1,6 +1,9 @@
 package agent
 
-import "strings"
+import (
+	"opencode-lite/internal/tools"
+	"strings"
+)
 
 func extractPattern(goal string) string {
 	// Ejemplo simple: buscar "algo"
@@ -71,4 +74,19 @@ func extractNewPath(goal string) string {
 		}
 	}
 	return ""
+}
+
+func (rt *AgentRuntime) executeTool(name string, args map[string]interface{}, ctx *AgentContext) tools.ToolResult {
+	toolFn := tools.ToolRegistry[name]
+	result := toolFn(args)
+
+	ctx.History = append(ctx.History, AgentStep{
+		Thought: "Ejecutando " + name,
+		Action:  name,
+		Input:   args,
+		Output:  result,
+	})
+
+	ctx.LastResult = result
+	return result
 }
