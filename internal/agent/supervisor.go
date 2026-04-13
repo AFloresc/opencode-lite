@@ -7,12 +7,14 @@ import (
 type Supervisor struct {
 	llm           *LLMClient
 	Metacognition *Metacognition
+	Strategy      *StrategyEngine
 }
 
 func NewSupervisor(llm LLMClient) *Supervisor {
 	return &Supervisor{
 		llm:           &llm,
 		Metacognition: NewMetacognition(llm),
+		Strategy:      NewStrategyEngine(llm),
 	}
 }
 
@@ -66,6 +68,15 @@ func (s *Supervisor) Analyze(goal string, rt *AgentRuntime, ctx *AgentContext) S
 	}
 
 	meta := s.Metacognition.Evaluate(goal, rt, ctx)
+	adj := s.Strategy.Adjust(meta, rt, ctx, goal)
+
+	// Si la estrategia dice que hay que cambiar de agente
+	if adj.ShouldSwitch {
+		return SupervisorDecision{
+			Action:    "delegate",
+			AgentName: adj.SwitchTo,
+		}
+	}
 
 	// Si la confianza es baja → pedir aclaración
 	if meta.Confidence < 0.3 {

@@ -22,6 +22,7 @@ type HybridPlanner struct {
 	Memory  *PlannerMemory
 	LLM     LLMClient
 	Project string
+	Mode    string
 }
 
 func NewHybridPlanner(projectID string, llm LLMClient) *HybridPlanner {
@@ -32,6 +33,7 @@ func NewHybridPlanner(projectID string, llm LLMClient) *HybridPlanner {
 		Memory:  mem,
 		LLM:     llm,
 		Project: projectID,
+		Mode:    "coarse", // default mode
 	}
 }
 
@@ -160,4 +162,27 @@ func (p *HybridPlanner) UpdateMemory(ctx AgentContext) {
 	}
 
 	_ = p.Memory.Save()
+}
+
+func (p *HybridPlanner) SetMode(mode string) {
+	p.Mode = mode
+}
+
+func (p *HybridPlanner) applyPlannerMode(plan Plan) Plan {
+	switch p.Mode {
+
+	case "fine":
+		return p.expandFine(plan)
+
+	case "aggressive":
+		return p.expandAggressive(plan)
+
+	case "conservative":
+		return p.simplifyConservative(plan)
+
+	case "coarse":
+		fallthrough
+	default:
+		return plan
+	}
 }
