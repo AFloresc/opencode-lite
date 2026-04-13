@@ -153,7 +153,95 @@ func (p RuleBasedPolicy) Decide(ctx *AgentContext) (string, map[string]interface
 	}
 
 	// ============================
-	// ❌ SIN REGLA → TERMINAR
+	// 🧠 EXPLICAR / RESUMIR / SEMÁNTICA AVANZADA
 	// ============================
+	if containsAny(goal, "explica", "explain") {
+		file := extractFile(goal)
+		return "summarize_file", map[string]interface{}{
+			"path": file,
+		}, false
+	}
+
+	if containsAny(goal, "resumir", "resume", "summary") {
+		file := extractFile(goal)
+		return "summarize_file", map[string]interface{}{
+			"path": file,
+		}, false
+	}
+
+	if containsAny(goal, "detectar lenguaje", "detect language") {
+		file := extractFile(goal)
+		return "detect_language", map[string]interface{}{
+			"path": file,
+		}, false
+	}
+
+	// ============================
+	// 🧹 FORMATO Y LIMPIEZA
+	// ============================
+	if containsAny(goal, "formatear", "format code", "formato") {
+		file := extractFile(goal)
+		return "format_code", map[string]interface{}{
+			"path": file,
+		}, false
+	}
+
+	if containsAny(goal, "limpiar imports", "clean imports") {
+		file := extractFile(goal)
+		return "format_code", map[string]interface{}{
+			"path": file,
+		}, false
+	}
+
+	// ============================
+	// 📄 DOCUMENTACIÓN
+	// ============================
+	if containsAny(goal, "documentar", "generate docs", "doc") {
+		file := extractFile(goal)
+		return "extract_comments_block", map[string]interface{}{
+			"path": file,
+		}, false
+	}
+
+	// ============================
+	// 📝 TODOs / FIXMEs
+	// ============================
+	if containsAny(goal, "todos", "fixme", "pendientes") {
+		return "search_regex_multi", map[string]interface{}{
+			"path":    "workspace",
+			"pattern": "TODO|FIXME",
+		}, false
+	}
+
+	// ============================
+	// 🧪 VALIDACIÓN DE SINTAXIS
+	// ============================
+	if containsAny(goal, "validar sintaxis", "syntax check", "lint") {
+		file := extractFile(goal)
+		return "lint_code", map[string]interface{}{
+			"path": file,
+		}, false
+	}
+
+	// ============================
+	// 📏 DETECTAR FUNCIONES LARGAS
+	// ============================
+	if containsAny(goal, "funciones largas", "long functions") {
+		return "search_regex_multi", map[string]interface{}{
+			"path":    "workspace",
+			"pattern": "func .*\\{[\\s\\S]{200,}\\}",
+		}, false
+	}
+
+	// ============================
+	// 🔁 DETECTAR DUPLICACIÓN
+	// ============================
+	if containsAny(goal, "duplicado", "duplicación", "duplicate code") {
+		return "search_regex_multi", map[string]interface{}{
+			"path":    "workspace",
+			"pattern": ".*", // heurística: luego se puede mejorar
+		}, false
+	}
+
 	return "", nil, true
 }
