@@ -5,7 +5,8 @@ import (
 )
 
 type AgentRuntime struct {
-	Policy AgentPolicy
+	Policy  AgentPolicy
+	Planner Planner
 }
 
 func (rt *AgentRuntime) Run(goal string) AgentContext {
@@ -14,31 +15,37 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 		Memory: map[string]interface{}{},
 	}
 
-	for step := 0; step < 20; step++ {
-		toolName, args, done := rt.Policy.Decide(&ctx)
-		if done {
-			break
-		}
+	plan := rt.Planner.MakePlan(goal)
 
-		toolFn, ok := tools.ToolRegistry[toolName]
-		if !ok {
-			ctx.LastResult = tools.ToolResult{
-				ToolName: toolName,
-				Error:    "tool no encontrada",
+	for _, step := range plan.Steps {
+		ctx.Goal = step.Description
+
+		for i := 0; i < 20; i++ {
+			toolName, args, done := rt.Policy.Decide(&ctx)
+			if done {
+				break
 			}
-			break
+
+			toolFn, ok := tools.ToolRegistry[toolName]
+			if !ok {
+				ctx.LastResult = tools.ToolResult{
+					ToolName: toolName,
+					Error:    "tool no encontrada",
+				}
+				break
+			}
+
+			result := toolFn(args)
+
+			ctx.History = append(ctx.History, AgentStep{
+				Thought: "Ejecutando " + toolName,
+				Action:  toolName,
+				Input:   args,
+				Output:  result,
+			})
+
+			ctx.LastResult = result
 		}
-
-		result := toolFn(args)
-
-		ctx.History = append(ctx.History, AgentStep{
-			Thought: "Ejecutando " + toolName,
-			Action:  toolName,
-			Input:   args,
-			Output:  result,
-		})
-
-		ctx.LastResult = result
 	}
 
 	return ctx
