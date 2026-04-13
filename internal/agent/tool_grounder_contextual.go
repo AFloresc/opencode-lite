@@ -1,119 +1,208 @@
 package agent
 
-import "strings"
+import (
+	"strings"
+)
+
+//
+// ============================================================
+//  ContextualToolGrounder
+// ============================================================
+//
 
 type ContextualToolGrounder struct {
-	ProjectStats ProjectStats
-	Memory       *PlannerMemory
+	Stats  ProjectStats
+	Memory *CognitiveMemory
+	Mode   string // "strict" o "flexible"
 }
 
-func NewContextualToolGrounder(stats ProjectStats, mem *PlannerMemory) *ContextualToolGrounder {
+func NewContextualToolGrounder(stats ProjectStats, mem *CognitiveMemory) *ContextualToolGrounder {
 	return &ContextualToolGrounder{
-		ProjectStats: stats,
-		Memory:       mem,
+		Stats:  stats,
+		Memory: mem,
+		Mode:   "strict",
 	}
 }
+
+func (g *ContextualToolGrounder) SetMode(mode string) {
+	if mode != "" {
+		g.Mode = mode
+	}
+}
+
+//
+// ============================================================
+//  Grounding principal
+// ============================================================
+//
 
 func (g *ContextualToolGrounder) Ground(step string, ctx *AgentContext) (*GroundedToolCall, bool) {
 	s := strings.ToLower(step)
 
-	// === 1. Si hay archivo actual, usarlo ===
-	currentFile := ""
-	if v, ok := ctx.Memory["current_file"].(string); ok {
-		currentFile = v
-	}
-
-	// === 2. Si el proyecto es grande, usar herramientas rápidas ===
-	isLarge := g.ProjectStats.FileCount > 300
-
-	// === 3. Si la memoria dice que un tool falla mucho, evitarlo ===
-	avoid := func(tool string) bool {
-		return g.Memory.FailedSteps[strings.ToLower(tool)] > 5
-	}
-
-	// === 4. Grounding contextual ===
-
-	switch s {
-
-	case "listar archivos":
-		if isLarge {
-			return &GroundedToolCall{
-				ToolName: "file_tree_fast",
-				Args:     map[string]interface{}{"root": "workspace"},
-			}, true
-		}
-		return &GroundedToolCall{
-			ToolName: "file_tree",
-			Args:     map[string]interface{}{"root": "workspace"},
-		}, true
-
-	case "calcular métricas":
-		if avoid("analysis_metrics") {
-			return &GroundedToolCall{
-				ToolName: "analysis_metrics_fast",
-				Args:     map[string]interface{}{"path": "workspace"},
-			}, true
-		}
-		return &GroundedToolCall{
-			ToolName: "analysis_metrics",
-			Args:     map[string]interface{}{"path": "workspace"},
-		}, true
-
-	case "detectar dependencias":
-		if avoid("analysis_dependencies") {
-			return &GroundedToolCall{
-				ToolName: "analysis_dependencies_light",
-				Args:     map[string]interface{}{"root": "workspace"},
-			}, true
-		}
-		return &GroundedToolCall{
-			ToolName: "analysis_dependencies",
-			Args:     map[string]interface{}{"root": "workspace"},
-		}, true
-
-	case "extraer funciones":
-		if currentFile != "" {
-			return &GroundedToolCall{
-				ToolName: "extract_functions",
-				Args:     map[string]interface{}{"path": currentFile},
-			}, true
-		}
-		return &GroundedToolCall{
-			ToolName: "extract_functions",
-			Args:     map[string]interface{}{"path": "workspace"},
-		}, true
-
-	case "extraer tipos":
-		if currentFile != "" {
-			return &GroundedToolCall{
-				ToolName: "extract_types",
-				Args:     map[string]interface{}{"path": currentFile},
-			}, true
-		}
-		return &GroundedToolCall{
-			ToolName: "extract_types",
-			Args:     map[string]interface{}{"path": "workspace"},
-		}, true
-
-	case "extraer comentarios":
-		if currentFile != "" {
-			return &GroundedToolCall{
-				ToolName: "extract_comments_block",
-				Args:     map[string]interface{}{"path": currentFile},
-			}, true
-		}
-		return &GroundedToolCall{
-			ToolName: "extract_comments_block",
-			Args:     map[string]interface{}{"path": "workspace"},
-		}, true
-
-	case "resumir archivo":
-		if currentFile != "" {
-			return &GroundedToolCall{
-				ToolName: "summarize_file",
-				Args:     map[string]interface{}{"path": currentFile},
-			}, true
+	// 1) Grounding estricto
+	if g.Mode == "strict" {
+		if call, ok := g.strictGround(s, ctx); ok {
+			return call, true
 		}
 	}
+
+	// 2) Grounding flexible
+	if call, ok := g.flexibleGround(s, ctx); ok {
+		return call, true
+	}
+
 	return nil, false
+}
+
+//
+// ============================================================
+//  STRICT GROUNDING
+// ============================================================
+//
+
+func (g *ContextualToolGrounder) strictGround(step string, ctx *AgentContext) (*GroundedToolCall, bool) {
+
+	// Dependencias
+	if containsAny(step, "dependencia", "dependencias", "imports") {
+		return &GroundedToolCall{
+			ToolName: "list_dependencies",
+			Args:     map[string]interface{}{},
+		}, true
+	}
+
+	// Métricas
+	if containsAny(step, "métrica", "métricas", "metrics") {
+		return &GroundedToolCall{
+			ToolName: "compute_metrics",
+			Args:     map[string]interface{}{},
+		}, true
+	}
+
+	// Listar archivos
+	if containsAny(step, "listar archivos", "list files") {
+		return &GroundedToolCall{
+			ToolName: "list_files",
+			Args:     map[string]interface{}{},
+		}, true
+	}
+
+	// Formatear
+	if containsAny(step, "formatear", "format") {
+		return &GroundedToolCall{
+			ToolName: "format_code",
+			Args:     map[string]interface{}{},
+		}, true
+	}
+
+	// Limpiar imports
+	if containsAny(step, "limpiar imports", "clean imports") {
+		return &GroundedToolCall{
+			ToolName: "clean_imports",
+			Args:     map[string]interface{}{},
+		}, true
+	}
+
+	return nil, false
+}
+
+//
+// ============================================================
+//  FLEXIBLE GROUNDING
+// ============================================================
+//
+
+func (g *ContextualToolGrounder) flexibleGround(step string, ctx *AgentContext) (*GroundedToolCall, bool) {
+
+	// Si menciona archivo
+	if containsAny(step, "archivo", "file") {
+		file := g.extractFileName(step)
+		if file != "" {
+			return &GroundedToolCall{
+				ToolName: "read_file",
+				Args: map[string]interface{}{
+					"path": file,
+				},
+			}, true
+		}
+	}
+
+	// Si menciona función
+	if containsAny(step, "función", "function") {
+		fn := g.extractFunctionName(step)
+		if fn != "" {
+			return &GroundedToolCall{
+				ToolName: "find_function",
+				Args: map[string]interface{}{
+					"name": fn,
+				},
+			}, true
+		}
+	}
+
+	// Búsqueda global
+	if containsAny(step, "buscar", "search") {
+		return &GroundedToolCall{
+			ToolName: "search_in_project",
+			Args: map[string]interface{}{
+				"query": step,
+			},
+		}, true
+	}
+
+	// Fallback semántico
+	return g.semanticFallback(step)
+}
+
+//
+// ============================================================
+//  SEMANTIC FALLBACK
+// ============================================================
+//
+
+func (g *ContextualToolGrounder) semanticFallback(step string) (*GroundedToolCall, bool) {
+	s := strings.ToLower(step)
+
+	if containsAny(s, "resumir", "summary") {
+		return &GroundedToolCall{
+			ToolName: "summarize_text",
+			Args: map[string]interface{}{
+				"text": step,
+			},
+		}, true
+	}
+
+	if containsAny(s, "explicar", "explain") {
+		return &GroundedToolCall{
+			ToolName: "explain_code",
+			Args: map[string]interface{}{
+				"input": step,
+			},
+		}, true
+	}
+
+	return nil, false
+}
+
+//
+// ============================================================
+//  HELPERS
+// ============================================================
+//
+
+func (g *ContextualToolGrounder) extractFileName(step string) string {
+	for _, w := range strings.Fields(step) {
+		if strings.Contains(w, ".go") || strings.Contains(w, ".md") {
+			return w
+		}
+	}
+	return ""
+}
+
+func (g *ContextualToolGrounder) extractFunctionName(step string) string {
+	for _, w := range strings.Fields(step) {
+		if strings.HasPrefix(w, "func") {
+			return w
+		}
+	}
+	return ""
 }
