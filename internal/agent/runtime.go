@@ -5,16 +5,18 @@ import (
 )
 
 type AgentRuntime struct {
-	Policy  AgentPolicy
-	Planner Planner
-	Mapper  StepMapper
+	Policy   AgentPolicy
+	Planner  Planner
+	Mapper   StepMapper
+	Grounder ToolGrounder
 }
 
 func NewAgentRuntime(projectID string, policy AgentPolicy, llm LLMClient) *AgentRuntime {
 	return &AgentRuntime{
-		Policy:  policy,
-		Planner: NewHybridPlanner(projectID, llm),
-		Mapper:  NewSemanticStepMapper(),
+		Policy:   policy,
+		Planner:  NewHybridPlanner(projectID, llm),
+		Mapper:   NewSemanticStepMapper(),
+		Grounder: NewDefaultToolGrounder(),
 	}
 }
 
@@ -34,6 +36,33 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 
 		ctx.Goal = normalized
 
+		// 1) Intentar grounding directo
+		if rt.Grounder != nil {
+			if call, ok := rt.Grounder.Ground(normalized, &ctx); ok {
+				toolFn, ok := tools.ToolRegistry[call.ToolName]
+				if !ok {
+					ctx.LastResult = tools.ToolResult{
+						ToolName: call.ToolName,
+						Error:    "tool no encontrada",
+					}
+					continue
+				}
+
+				result := toolFn(call.Args)
+
+				ctx.History = append(ctx.History, AgentStep{
+					Thought: "Ejecutando " + call.ToolName + " (grounded)",
+					Action:  call.ToolName,
+					Input:   call.Args,
+					Output:  result,
+				})
+
+				ctx.LastResult = result
+				continue
+			}
+		}
+
+		// 2) Fallback: usar Policy
 		for i := 0; i < 20; i++ {
 			toolName, args, done := rt.Policy.Decide(&ctx)
 			if done {
