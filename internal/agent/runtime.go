@@ -7,12 +7,14 @@ import (
 type AgentRuntime struct {
 	Policy  AgentPolicy
 	Planner Planner
+	Mapper  StepMapper
 }
 
 func NewAgentRuntime(projectID string, policy AgentPolicy, llm LLMClient) *AgentRuntime {
 	return &AgentRuntime{
 		Policy:  policy,
 		Planner: NewHybridPlanner(projectID, llm),
+		Mapper:  NewSemanticStepMapper(),
 	}
 }
 
@@ -25,7 +27,12 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 	plan := rt.Planner.MakePlan(goal)
 
 	for _, step := range plan.Steps {
-		ctx.Goal = step.Description
+		normalized := step.Description
+		if rt.Mapper != nil {
+			normalized = rt.Mapper.Normalize(step.Description)
+		}
+
+		ctx.Goal = normalized
 
 		for i := 0; i < 20; i++ {
 			toolName, args, done := rt.Policy.Decide(&ctx)
@@ -54,7 +61,7 @@ func (rt *AgentRuntime) Run(goal string) AgentContext {
 			ctx.LastResult = result
 		}
 	}
-	rt.Planner.UpdateMemory(ctx)
 
+	rt.Planner.UpdateMemory(ctx)
 	return ctx
 }
